@@ -82,7 +82,7 @@
 
             try {
                 // Send the share code to our local API
-                const response = await fetch('http://85.123.45.67:3000/decode', {
+                const response = await fetch('http://109.153.214.69:3000/decode', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
