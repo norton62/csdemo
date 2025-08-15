@@ -1,8 +1,7 @@
 import http from 'http';
 import { URL } from 'url';
+import { exec, ExecOptions } from 'child_process';
 import path from 'path';
-// We are going back to importing the function directly
-import { getDownloadLinkFromShareCode } from './lib/sharecode-handler.js';
 
 // ========================================================================================
 // SECURITY: RATE LIMITING
@@ -52,41 +51,49 @@ const server = http.createServer(async (req, res) => {
             body += chunk.toString();
         });
 
-        req.on('end', async () => { // Note: this is now an async function
+        req.on('end', () => {
             try {
                 const { shareCode } = JSON.parse(body);
                 if (!shareCode) {
                     throw new Error('Missing shareCode in request body.');
                 }
 
-                // --- DEFINITIVE FIX: PROVIDE THE EXPLICIT PATH TO THE EXECUTABLE ---
-                // On Render, the project root is the current working directory.
+                // --- REVERTING TO THE 'EXEC' METHOD ---
+                // This is the most reliable way to run your script in a server environment.
                 const projectRoot = process.cwd();
-                // We construct the exact path to the Linux executable based on the error logs.
-                const boilerPath = path.join(
-                    projectRoot,
-                    'node_modules',
-                    '@akiver',
-                    'boiler-writter',
-                    'bin',
-                    'linux-x64', // Specify the correct Linux executable
-                    'boiler-writter'
-                );
+                const scriptPath = path.join(projectRoot, 'dist', 'index.js');
+                const sanitizedShareCode = shareCode.replace(/[^a-zA-Z0-9-]/g, '');
+                const command = `node "${scriptPath}" demo-url ${sanitizedShareCode}`;
 
-                console.log(`Attempting to use boiler executable at: ${boilerPath}`);
+                // Set the Current Working Directory to ensure the script finds node_modules.
+                const execOptions: ExecOptions = {
+                    cwd: projectRoot
+                };
 
-                // We now call your function directly and pass the explicit path.
-                // This bypasses the library's faulty auto-detection.
-                const result = await getDownloadLinkFromShareCode(shareCode, { boilerPath });
+                console.log(`Executing command: ${command} in CWD: ${projectRoot}`);
 
-                if (!result || !result.demoUrl) {
-                    throw new Error('Decoding failed: The result did not contain a demoUrl.');
-                }
-                
-                const downloadLink = result.demoUrl;
-                console.log(`Successfully retrieved link: ${downloadLink}`);
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ downloadLink }));
+                exec(command, execOptions, (error, stdout, stderr) => {
+                    if (error || stderr) {
+                        const errorMessage = stderr || (error ? error.message : 'Unknown execution error');
+                        console.error(`Execution error: ${errorMessage}`);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: `Server error: ${errorMessage.trim()}` }));
+                        return;
+                    }
+
+                    const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
+                    if (!urlMatch || !urlMatch[0]) {
+                        console.error(`Could not find a URL in the script output. Full output: ${stdout}`);
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Server error: Could not parse the demo link.' }));
+                        return;
+                    }
+
+                    const downloadLink = urlMatch[0];
+                    console.log(`Successfully parsed link: ${downloadLink}`);
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ downloadLink: downloadLink }));
+                });
 
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
@@ -101,7 +108,6 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-// Render provides the port to use via an environment variable.
 const PORT = process.env.PORT || 3000;
 
 server.listen(Number(PORT), '0.0.0.0', () => {

@@ -1,7 +1,8 @@
 import http from 'http';
 import { URL } from 'url';
-import { exec, ExecOptions } from 'child_process';
 import path from 'path';
+// We are going back to importing the function directly
+import { getDownloadLinkFromShareCode } from './lib/sharecode-handler.js';
 
 // ========================================================================================
 // SECURITY: RATE LIMITING
@@ -51,51 +52,41 @@ const server = http.createServer(async (req, res) => {
             body += chunk.toString();
         });
 
-        req.on('end', () => {
+        req.on('end', async () => { // Note: this is now an async function
             try {
                 const { shareCode } = JSON.parse(body);
                 if (!shareCode) {
                     throw new Error('Missing shareCode in request body.');
                 }
 
-                // --- EXECUTE THE COMMAND-LINE SCRIPT FROM THE CORRECT DIRECTORY ---
-                // Use process.cwd() to dynamically get the project's root directory on Render.
+                // --- DEFINITIVE FIX: PROVIDE THE EXPLICIT PATH TO THE EXECUTABLE ---
+                // On Render, the project root is the current working directory.
                 const projectRoot = process.cwd();
-                const scriptPath = path.join(projectRoot, 'dist', 'index.js');
-                const sanitizedShareCode = shareCode.replace(/[^a-zA-Z0-9-]/g, '');
-                const command = `node "${scriptPath}" demo-url ${sanitizedShareCode}`;
+                // We construct the exact path to the Linux executable based on the error logs.
+                const boilerPath = path.join(
+                    projectRoot,
+                    'node_modules',
+                    '@akiver',
+                    'boiler-writter',
+                    'bin',
+                    'linux-x64', // Specify the correct Linux executable
+                    'boiler-writter'
+                );
 
-                // CRITICAL FIX: Set the Current Working Directory (cwd) for the command.
-                // This forces the script to run from the project root, allowing it
-                // to correctly locate the node_modules folder.
-                const execOptions: ExecOptions = {
-                    cwd: projectRoot
-                };
+                console.log(`Attempting to use boiler executable at: ${boilerPath}`);
 
-                console.log(`Executing command: ${command} in CWD: ${projectRoot}`);
+                // We now call your function directly and pass the explicit path.
+                // This bypasses the library's faulty auto-detection.
+                const result = await getDownloadLinkFromShareCode(shareCode, { boilerPath });
 
-                exec(command, execOptions, (error, stdout, stderr) => {
-                    if (error || stderr) {
-                        const errorMessage = stderr || (error ? error.message : 'Unknown execution error');
-                        console.error(`Execution error: ${errorMessage}`);
-                        res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: `Server error: ${errorMessage.trim()}` }));
-                        return;
-                    }
-
-                    const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
-                    if (!urlMatch || !urlMatch[0]) {
-                        console.error(`Could not find a URL in the script output. Full output: ${stdout}`);
-                        res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: 'Server error: Could not parse the demo link.' }));
-                        return;
-                    }
-
-                    const downloadLink = urlMatch[0];
-                    console.log(`Successfully parsed link: ${downloadLink}`);
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ downloadLink: downloadLink }));
-                });
+                if (!result || !result.demoUrl) {
+                    throw new Error('Decoding failed: The result did not contain a demoUrl.');
+                }
+                
+                const downloadLink = result.demoUrl;
+                console.log(`Successfully retrieved link: ${downloadLink}`);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ downloadLink }));
 
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
