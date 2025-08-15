@@ -82,7 +82,7 @@
 
             try {
                 // Send the share code to our local API
-                const response = await fetch('https://csdemo.onrender.com/decode', {
+                const response = await fetch('109.153.214.69:3000/decode', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
