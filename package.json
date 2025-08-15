@@ -4,14 +4,13 @@
   "description": "Standalone CLI tool to get CS demo download links from share codes",
   "main": "index.js",
   "type": "module",
-     "scripts": {
+  "scripts": {
     "start": "node dist/index.js",
     "build": "tsc",
-    "postbuild": "node -e \"if (process.platform === 'linux') { const fs = require('fs-extra'); const path = require('path'); const src = path.join(__dirname, 'node_modules/@akiver/boiler-writter/bin/linux-x64/boiler-writter'); const dest = path.join(__dirname, 'dist/boiler-writter'); fs.copySync(src, dest); fs.chmodSync(dest, 0o755); console.log('Copied Linux boiler-writter executable to dist.'); }\"",
+    "postbuild": "node -e \"if (process.platform === 'linux') { const fs = require('fs-extra'); const path = require('path'); const src = path.join(__dirname, 'bin', 'linux-x64', 'boiler-writter'); const dest = path.join(__dirname, 'dist', 'boiler-writter'); if (fs.existsSync(src)) { fs.copySync(src, dest); fs.chmodSync(dest, 0o755); console.log('Copied local Linux boiler-writter executable to dist.'); } else { console.error('ERROR: Local boiler-writter linux executable not found at:', src); process.exit(1); } }\"",
     "dev": "node --loader ts-node/esm index.ts",
     "start:api": "node dist/api.js"
   },
-
   "dependencies": {
     "@akiver/boiler-writter": "^1.6.0",
     "commander": "^12.0.0",
