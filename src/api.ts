@@ -7,10 +7,6 @@ import { fileURLToPath } from 'url';
 // ========================================================================================
 // SECURITY: RATE LIMITING
 // ========================================================================================
-// This is a simple in-memory rate limiter to prevent abuse.
-// For a production environment, a more robust solution like a Redis-backed
-// limiter would be better, but this is a great starting point.
-
 const rateLimitStore: { [ip: string]: number[] } = {};
 const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 15; // Allow 15 requests per minute per IP
@@ -18,76 +14,62 @@ const MAX_REQUESTS_PER_WINDOW = 15; // Allow 15 requests per minute per IP
 const isRateLimited = (ip: string): boolean => {
     const now = Date.now();
     const userRequests = rateLimitStore[ip] || [];
-
-    // Filter out requests that are outside the time window
     const requestsInWindow = userRequests.filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW_MS);
-
     if (requestsInWindow.length >= MAX_REQUESTS_PER_WINDOW) {
-        return true; // User has exceeded the rate limit
+        return true;
     }
-
-    // Add the current request timestamp and update the store
     requestsInWindow.push(now);
     rateLimitStore[ip] = requestsInWindow;
     return false;
 };
 
-
 // ========================================================================================
 // HTTP SERVER LOGIC
 // ========================================================================================
-
 const server = http.createServer(async (req, res) => {
-    // SECURITY: Replace wildcard CORS with a specific origin for your frontend
-    // When you deploy your frontend, change 'http://localhost:8080' (or wherever you test)
-    // to your actual public domain (e.g., 'https://www.mycs2site.com').
-    const allowedOrigin = 'https://csreplay.xyz'; // For now, keep it open for local testing. CHANGE THIS FOR PRODUCTION.
+    const allowedOrigin = 'https://csreplay.xyz';
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    // Handle pre-flight requests for CORS
     if (req.method === 'OPTIONS') {
-        res.writeHead(204); // No Content
+        res.writeHead(204);
         res.end();
         return;
     }
 
-    // SECURITY: Apply the rate limiter
     const clientIp = req.socket.remoteAddress || 'unknown';
     if (isRateLimited(clientIp)) {
-        res.writeHead(429, { 'Content-Type': 'application/json' }); // 429 Too Many Requests
+        res.writeHead(429, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Too many requests. Please try again later.' }));
         return;
     }
 
-    // We only want to handle POST requests to the /decode endpoint
     const requestUrl = new URL(req.url || '', `http://${req.headers.host}`);
     if (requestUrl.pathname === '/decode' && req.method === 'POST') {
         let body = '';
-        
         req.on('data', chunk => {
             body += chunk.toString();
         });
 
-        req.on('end', () => { // No longer needs to be async here
+        req.on('end', () => {
             try {
                 const { shareCode } = JSON.parse(body);
                 if (!shareCode) {
                     throw new Error('Missing shareCode in request body.');
                 }
-                
-                // --- EXECUTE THE WORKING COMMAND-LINE SCRIPT ---
-                const __filename = fileURLToPath(import.meta.url);
-                const __dirname = path.dirname(__filename);
-                const projectRoot = path.join(__dirname, '..'); // The root directory of your project
-                const scriptPath = path.join(projectRoot, 'dist', 'index.js');
 
-                // Sanitize the share code to prevent command injection vulnerabilities.
+                // --- EXECUTE THE COMMAND-LINE SCRIPT FROM THE CORRECT DIRECTORY ---
+                // Render's root directory for projects is /opt/render/project/src
+                // We will use this as the base for our paths.
+                const projectRoot = '/opt/render/project/src';
+                const scriptPath = path.join(projectRoot, 'dist', 'index.js');
                 const sanitizedShareCode = shareCode.replace(/[^a-zA-Z0-9-]/g, '');
                 const command = `node "${scriptPath}" demo-url ${sanitizedShareCode}`;
-                
+
                 // CRITICAL FIX: Set the Current Working Directory (cwd) for the command.
+                // This forces the script to run from the project root, allowing it
+                // to correctly locate the node_modules folder.
                 const execOptions: ExecOptions = {
                     cwd: projectRoot
                 };
@@ -95,33 +77,24 @@ const server = http.createServer(async (req, res) => {
                 console.log(`Executing command: ${command} in ${projectRoot}`);
 
                 exec(command, execOptions, (error, stdout, stderr) => {
-                    if (error) {
-                        console.error(`Execution error: ${error.message}`);
+                    if (error || stderr) {
+                        const errorMessage = stderr || (error ? error.message : 'Unknown execution error');
+                        console.error(`Execution error: ${errorMessage}`);
                         res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: `Server error: ${stderr || error.message}` }));
-                        return;
-                    }
-                    if (stderr) {
-                        console.error(`Standard error: ${stderr}`);
-                        res.writeHead(400, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: stderr.trim() }));
+                        res.end(JSON.stringify({ error: `Server error: ${errorMessage}` }));
                         return;
                     }
 
-                    // --- PARSE THE COMMAND OUTPUT TO EXTRACT ONLY THE URL ---
                     const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
-                    
                     if (!urlMatch || !urlMatch[0]) {
                         console.error(`Could not find a URL in the script output. Full output: ${stdout}`);
                         res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: 'Server error: Could not parse the demo link from the script output.' }));
+                        res.end(JSON.stringify({ error: 'Server error: Could not parse the demo link.' }));
                         return;
                     }
 
                     const downloadLink = urlMatch[0];
                     console.log(`Successfully parsed link: ${downloadLink}`);
-
-                    // Send the successful response
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ downloadLink: downloadLink }));
                 });
@@ -133,7 +106,6 @@ const server = http.createServer(async (req, res) => {
                 res.end(JSON.stringify({ error: errorMessage }));
             }
         });
-
     } else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not Found' }));
@@ -141,9 +113,11 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = 3000;
-// Listen on all available network interfaces, not just localhost.
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 CS2 Share Code Decoder API is running on http://localhost:${PORT}`);
-    console.log(`   Accepting connections from your local network and the internet.`);
-    console.log(`Listening for POST requests on /decode`);
+// Render provides the port to use via an environment variable.
+// We should use that, but fall back to 3000 for local development.
+const listenPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+server.listen(listenPort, '0.0.0.0', () => {
+    console.log(`🚀 CS2 Share Code Decoder API is running on port ${listenPort}`);
+    console.log(`   Accepting connections from any IP.`);
 });

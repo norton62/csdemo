@@ -41,7 +41,7 @@ const server = http.createServer(async (req, res) => {
     // SECURITY: Replace wildcard CORS with a specific origin for your frontend
     // When you deploy your frontend, change 'http://localhost:8080' (or wherever you test)
     // to your actual public domain (e.g., 'https://www.mycs2site.com').
-    const allowedOrigin = '*'; // For now, keep it open for local testing. CHANGE THIS FOR PRODUCTION.
+    const allowedOrigin = 'https://csreplay.xyz'; // For now, keep it open for local testing. CHANGE THIS FOR PRODUCTION.
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
