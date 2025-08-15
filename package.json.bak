@@ -4,12 +4,11 @@
   "description": "Standalone CLI tool to get CS demo download links from share codes",
   "main": "index.js",
   "type": "module",
-  "scripts": {
-    "start": "node index.js",
-    "build": "tsc && node -e \"require('fs').copyFileSync('public/boiler-writter.exe', 'dist/boiler-writter.exe')\"",
-    "buildlinux": "tsc && node -e \"const fs = require('fs'); const os = require('os'); const path = require('path'); if (os.platform() === 'win32') { fs.copyFileSync('public/boiler-writter.exe', 'dist/boiler-writter.exe'); } else { const srcDir = path.join('node_modules', '@akiver', 'boiler-writter', 'dist', 'bin', 'linux-x64'); fs.copyFileSync(path.join(srcDir, 'boiler-writter'), 'dist/boiler-writter'); fs.copyFileSync(path.join(srcDir, 'libsteam_api.so'), 'dist/libsteam_api.so'); fs.copyFileSync(path.join(srcDir, 'steam_appid.txt'), 'dist/steam_appid.txt'); }\"",
+    "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
     "dev": "node --loader ts-node/esm index.ts",
-    "start:api": "node --loader ts-node/esm src/api.ts"
+    "start:api": "node dist/api.js"
   },
   "dependencies": {
     "@akiver/boiler-writter": "^1.6.0",
