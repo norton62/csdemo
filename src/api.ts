@@ -2,6 +2,7 @@ import http from 'http';
 import { URL } from 'url';
 import { exec, ExecOptions } from 'child_process';
 import path from 'path';
+import fs from 'fs-extra'; // Import the file system library
 
 // ========================================================================================
 // SECURITY: RATE LIMITING
@@ -58,14 +59,32 @@ const server = http.createServer(async (req, res) => {
                     throw new Error('Missing shareCode in request body.');
                 }
 
-                // --- REVERTING TO THE 'EXEC' METHOD ---
-                // This is the most reliable way to run your script in a server environment.
                 const projectRoot = process.cwd();
+
+                // --- DEFINITIVE RUNTIME FIX FOR EXECUTABLE PATH ---
+                // The boiler-writter library has a bug where it looks for its executable
+                // in the wrong path on Linux. To fix this, we manually copy the correct
+                // executable to the 'dist' folder, which is the first place the library checks.
+                try {
+                    const executableName = 'boiler-writter';
+                    const sourcePath = path.join(projectRoot, 'node_modules', '@akiver', 'boiler-writter', 'bin', 'linux-x64', executableName);
+                    const destPath = path.join(projectRoot, 'dist', executableName);
+
+                    if (fs.existsSync(sourcePath) && !fs.existsSync(destPath)) {
+                        console.log(`WORKAROUND: Copying boiler executable from ${sourcePath} to ${destPath}`);
+                        fs.copySync(sourcePath, destPath);
+                        fs.chmodSync(destPath, 0o755); // Make the file executable
+                    }
+                } catch (copyError) {
+                    console.error('Failed to copy boiler executable:', copyError);
+                    // We don't stop the process, as it might still work if the file was copied previously.
+                }
+                // --- END OF FIX ---
+
                 const scriptPath = path.join(projectRoot, 'dist', 'index.js');
                 const sanitizedShareCode = shareCode.replace(/[^a-zA-Z0-9-]/g, '');
                 const command = `node "${scriptPath}" demo-url ${sanitizedShareCode}`;
 
-                // Set the Current Working Directory to ensure the script finds node_modules.
                 const execOptions: ExecOptions = {
                     cwd: projectRoot
                 };
