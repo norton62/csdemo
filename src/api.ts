@@ -2,7 +2,6 @@ import http from 'http';
 import { URL } from 'url';
 import { exec, ExecOptions } from 'child_process';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 // ========================================================================================
 // SECURITY: RATE LIMITING
@@ -60,9 +59,8 @@ const server = http.createServer(async (req, res) => {
                 }
 
                 // --- EXECUTE THE COMMAND-LINE SCRIPT FROM THE CORRECT DIRECTORY ---
-                // Render's root directory for projects is /opt/render/project/src
-                // We will use this as the base for our paths.
-                const projectRoot = '/opt/render/project/src';
+                // Use process.cwd() to dynamically get the project's root directory on Render.
+                const projectRoot = process.cwd();
                 const scriptPath = path.join(projectRoot, 'dist', 'index.js');
                 const sanitizedShareCode = shareCode.replace(/[^a-zA-Z0-9-]/g, '');
                 const command = `node "${scriptPath}" demo-url ${sanitizedShareCode}`;
@@ -74,14 +72,14 @@ const server = http.createServer(async (req, res) => {
                     cwd: projectRoot
                 };
 
-                console.log(`Executing command: ${command} in ${projectRoot}`);
+                console.log(`Executing command: ${command} in CWD: ${projectRoot}`);
 
                 exec(command, execOptions, (error, stdout, stderr) => {
                     if (error || stderr) {
                         const errorMessage = stderr || (error ? error.message : 'Unknown execution error');
                         console.error(`Execution error: ${errorMessage}`);
                         res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ error: `Server error: ${errorMessage}` }));
+                        res.end(JSON.stringify({ error: `Server error: ${errorMessage.trim()}` }));
                         return;
                     }
 
@@ -112,12 +110,10 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-const PORT = 3000;
 // Render provides the port to use via an environment variable.
-// We should use that, but fall back to 3000 for local development.
-const listenPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = process.env.PORT || 3000;
 
-server.listen(listenPort, '0.0.0.0', () => {
-    console.log(`🚀 CS2 Share Code Decoder API is running on port ${listenPort}`);
+server.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`🚀 CS2 Share Code Decoder API is running on port ${PORT}`);
     console.log(`   Accepting connections from any IP.`);
 });
