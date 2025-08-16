@@ -87,20 +87,6 @@
     </div>
 
     <script>
-        // --- SERVICE WORKER REGISTRATION ---
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                .then(registration => {
-                    console.log('Service Worker registered with scope:', registration.scope);
-                })
-                .catch(error => {
-                    console.error('Service Worker registration failed:', error);
-                });
-            });
-        }
-        // --- END OF REGISTRATION ---
-
         const form = document.getElementById('shareCodeForm');
         const input = document.getElementById('shareCodeInput');
         const resultDiv = document.getElementById('result');
@@ -111,15 +97,19 @@
         const apiStatusSpan = document.getElementById('apiStatus');
         
         const apiEndpoints = [
-            'https://csreplay.moon-moon.tech',
-            'https://improve-pig-banner-prove.trycloudflare.com'
+            'https://retain-applying-thousand-common.trycloudflare.com',
+            'https://csreplay.moon-moon.tech'
         ];
+        let activeApiEndpoint = apiEndpoints[0]; // Store the active endpoint
 
         async function fetchWithFallback(path, options) {
             for (const endpoint of apiEndpoints) {
                 try {
                     const response = await fetch(`${endpoint}${path}`, options);
-                    if (response.ok) return response;
+                    if (response.ok) {
+                        activeApiEndpoint = endpoint; // Update the active endpoint on success
+                        return response;
+                    }
                 } catch (error) {
                     console.error(`Request to ${endpoint}${path} failed:`, error);
                 }
@@ -180,14 +170,16 @@
         });
 
         function displayLink(link) {
-            // Create a link that the Service Worker will intercept
-            const downloadUrl = `/download-demo?url=${encodeURIComponent(link)}`;
+            // Construct the proxy URL using the currently active API endpoint
+            const proxyUrl = `${activeApiEndpoint}/download?url=${encodeURIComponent(link)}`;
+            const filename = link.split('/').pop();
 
             resultDiv.innerHTML = `
                 <div class="flex flex-col items-center space-y-4 text-center">
-                    <p class="font-bold text-white">Your download link is ready!</p>
+                    <p class="font-bold text-white">Your download is ready!</p>
                     <a 
-                        href="${downloadUrl}" 
+                        href="${proxyUrl}" 
+                        download="${filename}"
                         class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
                     >Download Demo</a>
                     <button id="copyButton" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-300">
@@ -197,7 +189,7 @@
             `;
             document.getElementById('copyButton').addEventListener('click', () => {
                 const textArea = document.createElement('textarea');
-                textArea.value = link;
+                textArea.value = link; // Copy the original Valve link
                 document.body.appendChild(textArea);
                 textArea.select();
                 try {
