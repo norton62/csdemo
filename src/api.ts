@@ -2,12 +2,40 @@ import http from 'http';
 import { URL } from 'url';
 import { exec, ExecOptions } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 // ========================================================================================
-// COUNTER LOGIC
+// COUNTER LOGIC WITH PERSISTENCE
 // ========================================================================================
-// A simple in-memory counter. This will reset if the server restarts.
+const countFilePath = path.join(process.cwd(), 'count.json');
 let successfulParses = 0;
+
+// Function to load the count from the JSON file
+function loadCount() {
+    try {
+        if (fs.existsSync(countFilePath)) {
+            const data = fs.readFileSync(countFilePath, 'utf-8');
+            const json = JSON.parse(data);
+            successfulParses = json.count || 0;
+            console.log(`Successfully loaded count: ${successfulParses}`);
+        } else {
+            console.log('count.json not found, starting count at 0.');
+        }
+    } catch (error) {
+        console.error('Error loading count from file:', error);
+        successfulParses = 0; // Start fresh if the file is corrupt
+    }
+}
+
+// Function to save the count to the JSON file
+function saveCount() {
+    try {
+        const data = JSON.stringify({ count: successfulParses }, null, 2);
+        fs.writeFileSync(countFilePath, data, 'utf-8');
+    } catch (error) {
+        console.error('Error saving count to file:', error);
+    }
+}
 
 // ========================================================================================
 // SECURITY: RATE LIMITING
@@ -102,6 +130,7 @@ const server = http.createServer(async (req, res) => {
                     }
 
                     successfulParses++; // Increment the counter on success
+                    saveCount(); // Save the new count to the file
                     const downloadLink = urlMatch[0];
                     console.log(`Successfully parsed link: ${downloadLink}. Total parses: ${successfulParses}`);
                     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -122,6 +151,9 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = 3000;
+
+// Load the initial count before starting the server
+loadCount();
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 CS2 Share Code Decoder API is running on port ${PORT}`);
