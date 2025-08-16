@@ -99,7 +99,6 @@
         const apiEndpoints = [
             'https://consultants-admissions-site-challenge.trycloudflare.com'
 			'https://csreplay.moon-moon.tech',
-           
         ];
         let activeApiEndpoint = apiEndpoints[0]; // Store the active endpoint
 
@@ -149,7 +148,6 @@
 
         async function getInitialCount() {
             try {
-                // We don't need a long timeout here, just a quick check.
                 const response = await fetch(`${apiEndpoints[0]}/count`);
                 const data = await response.json();
                 counterSpan.textContent = data.count;
