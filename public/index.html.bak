@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS2 Demo Link Generator</title>
+    <!-- Using Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* A little extra style for a nice gradient background */
+        body {
+            background: linear-gradient(to right, #1e3a8a, #3b82f6);
+        }
+        /* Style for the result link */
+        #result a {
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased text-gray-100 flex items-center justify-center min-h-screen">
+
+    <div class="bg-gray-800 bg-opacity-50 backdrop-blur-md rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4">
+        
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">CS2 Demo Link Generator</h1>
+            <p class="text-blue-200">Paste your match share code to get the demo download link.</p>
+        </div>
+
+        <!-- Input Form -->
+        <form id="shareCodeForm">
+            <div class="mb-4">
+                <label for="shareCodeInput" class="sr-only">Share Code</label>
+                <input 
+                    type="text" 
+                    id="shareCodeInput"
+                    placeholder="e.g., CSGO-xxxxx-xxxxx-....."
+                    class="w-full px-4 py-3 bg-gray-700 text-white border-2 border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-300"
+                    required
+                >
+            </div>
+            <button 
+                type="submit" 
+                id="submitButton"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
+            >
+                <!-- Spinner icon for loading state -->
+                <svg id="spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="buttonText">Get Download Link</span>
+            </button>
+        </form>
+
+        <!-- Result Display Area -->
+        <div id="result" class="mt-8 p-6 bg-gray-900 rounded-lg text-center min-h-[80px] flex items-center justify-center transition-all duration-300">
+            <p class="text-gray-400">Your link will appear here...</p>
+        </div>
+
+        <!-- Footer with Creator Tag and Counter -->
+        <div class="text-center mt-8 text-blue-200 text-sm">
+            <p class="mb-2">
+                Created by <a href="https://steamcommunity.com/id/norton99/" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">norton99</a>
+            </p>
+            <p>
+                Successful links generated: <span id="parseCounter" class="font-bold">...</span>
+            </p>
+        </div>
+
+    </div>
+
+    <script>
+        const form = document.getElementById('shareCodeForm');
+        const input = document.getElementById('shareCodeInput');
+        const resultDiv = document.getElementById('result');
+        const submitButton = document.getElementById('submitButton');
+        const spinner = document.getElementById('spinner');
+        const buttonText = document.getElementById('buttonText');
+        const counterSpan = document.getElementById('parseCounter');
+        
+        // IMPORTANT: Use your ngrok URL here for local testing
+        const apiUrl = 'https://leaders-dim-vertical-edition.trycloudflare.com'; 
+
+        // Function to fetch the initial count when the page loads
+        async function getInitialCount() {
+            try {
+                const response = await fetch(`${apiUrl}/count`);
+                if (!response.ok) return;
+                const data = await response.json();
+                counterSpan.textContent = data.count;
+            } catch (error) {
+                console.error('Could not fetch initial count:', error);
+                counterSpan.textContent = 'N/A';
+            }
+        }
+
+        // Listen for form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const shareCode = input.value.trim();
+            if (!shareCode) {
+                displayError('Please enter a share code.');
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const response = await fetch(`${apiUrl}/decode`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ shareCode: shareCode }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'An unknown error occurred.');
+                }
+
+                displayLink(data.downloadLink);
+                // Update the counter with the new count from the server response
+                if (data.newCount !== undefined) {
+                    counterSpan.textContent = data.newCount;
+                }
+
+            } catch (error) {
+                console.error('Fetch error:', error);
+                displayError(error.message);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // Function to display the clickable download link
+        function displayLink(link) {
+            resultDiv.innerHTML = `
+                <a 
+                    href="${link}" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    class="text-blue-400 hover:text-blue-300 font-medium underline transition duration-300"
+                >
+                    ${link}
+                </a>
+            `;
+        }
+
+        // Function to display an error message
+        function displayError(message) {
+            resultDiv.innerHTML = `<p class="text-red-400 font-semibold">${message}</p>`;
+        }
+
+        // Function to manage the loading state of the button
+        function setLoading(isLoading) {
+            if (isLoading) {
+                submitButton.disabled = true;
+                spinner.classList.remove('hidden');
+                buttonText.textContent = 'Decoding...';
+                submitButton.classList.add('opacity-75', 'cursor-not-allowed');
+            } else {
+                submitButton.disabled = false;
+                spinner.classList.add('hidden');
+                buttonText.textContent = 'Get Download Link';
+                submitButton.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        }
+
+        // Load the initial count when the page is ready
+        document.addEventListener('DOMContentLoaded', getInitialCount);
+    </script>
+</body>
+</html>
