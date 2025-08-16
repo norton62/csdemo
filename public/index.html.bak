@@ -97,10 +97,8 @@
         const apiStatusSpan = document.getElementById('apiStatus');
         
         const apiEndpoints = [
-            'https://improve-pig-banner-prove.trycloudflare.com',
+            'https://retain-applying-thousand-common.trycloudflare.com',
             'https://csreplay.moon-moon.tech'
-			
-			
         ];
         let activeApiEndpoint = apiEndpoints[0]; // Store the active endpoint
 

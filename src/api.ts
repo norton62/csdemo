@@ -114,12 +114,23 @@ const server = http.createServer(async (req, res) => {
                 const projectRoot = process.cwd();
                 const scriptPath = path.join(projectRoot, 'dist', 'index.js');
                 const command = `node "${scriptPath}" demo-url ${shareCode.replace(/[^a-zA-Z0-9-]/g, '')}`;
-                const execOptions: ExecOptions = { cwd: projectRoot };
+                
+                // Add a timeout to prevent the process from hanging indefinitely
+                const execOptions: ExecOptions = { 
+                    cwd: projectRoot,
+                    timeout: 30000 // 30 seconds
+                };
 
                 console.log(`Executing: ${command}`);
                 exec(command, execOptions, (error, stdout, stderr) => {
-                    if (error || stderr) {
-                        const errorMessage = stderr || (error ? error.message : 'Unknown error');
+                    if (error) {
+                        // Check if the error was due to a timeout
+                        if (error.signal === 'SIGTERM') {
+                            console.error('Execution timed out.');
+                            res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Server error: Decoding timed out. The Steam client may not be running.' }));
+                            return;
+                        }
+                        const errorMessage = stderr || error.message;
                         console.error(`Exec error: ${errorMessage}`);
                         res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: `Server error: ${errorMessage.trim()}` }));
                         return;
