@@ -79,14 +79,41 @@
         const buttonText = document.getElementById('buttonText');
         const counterSpan = document.getElementById('parseCounter');
         
-        // IMPORTANT: Use your ngrok URL here for local testing
-        const apiUrl = 'https://improve-pig-banner-prove.trycloudflare.com'; 
+        // --- API FALLBACK LOGIC ---
+        const apiEndpoints = [
+            'https://csreplay.moon-moon.tech',
+            'https://improve-pig-banner-prove.trycloudflare.com'
+        ];
+
+        // This function tries to fetch from a list of URLs until one succeeds.
+        async function fetchWithFallback(path, options) {
+            for (const endpoint of apiEndpoints) {
+                try {
+                    console.log(`Trying API endpoint: ${endpoint}${path}`);
+                    const response = await fetch(`${endpoint}${path}`, options);
+                    if (response.ok) {
+                        console.log(`Success with endpoint: ${endpoint}${path}`);
+                        return response; // Return the successful response
+                    }
+                    console.warn(`Request to ${endpoint}${path} failed with status: ${response.status}`);
+                } catch (error) {
+                    console.error(`Request to ${endpoint}${path} failed with error:`, error);
+                    // If it fails, the loop will continue to the next endpoint.
+                }
+            }
+            // If all endpoints fail, throw an error.
+            throw new Error('All API endpoints are unreachable.');
+        }
+        // --- END OF API FALLBACK LOGIC ---
+
 
         // Function to fetch the initial count when the page loads
         async function getInitialCount() {
             try {
-                const response = await fetch(`${apiUrl}/count`);
-                if (!response.ok) return;
+                // Always fetch the initial count from the primary server for consistency.
+                const primaryEndpoint = apiEndpoints[0];
+                console.log(`Fetching initial count from primary endpoint: ${primaryEndpoint}/count`);
+                const response = await fetch(`${primaryEndpoint}/count`);
                 const data = await response.json();
                 counterSpan.textContent = data.count;
             } catch (error) {
@@ -108,7 +135,7 @@
             setLoading(true);
 
             try {
-                const response = await fetch(`${apiUrl}/decode`, {
+                const response = await fetchWithFallback('/decode', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -118,12 +145,8 @@
 
                 const data = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(data.error || 'An unknown error occurred.');
-                }
-
                 displayLink(data.downloadLink);
-                // Update the counter with the new count from the server response
+                // The count will update to reflect the count of whichever server responded.
                 if (data.newCount !== undefined) {
                     counterSpan.textContent = data.newCount;
                 }
