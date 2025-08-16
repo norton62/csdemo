@@ -186,12 +186,14 @@
         });
 
         function displayLink(link) {
+            // Extract the filename from the URL (e.g., 'match.dem.bz2')
+            const filename = link.split('/').pop();
+
             resultDiv.innerHTML = `
                 <div class="flex flex-col items-center space-y-4">
                     <a 
                         href="${link}" 
-                        download
-                        target="_blank" 
+                        download="${filename}"
                         rel="noopener noreferrer" 
                         class="text-blue-400 hover:text-blue-300 font-medium underline"
                     >${link}</a>

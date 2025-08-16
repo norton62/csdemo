@@ -87,6 +87,20 @@
     </div>
 
     <script>
+        // --- SERVICE WORKER REGISTRATION ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                })
+                .catch(error => {
+                    console.error('Service Worker registration failed:', error);
+                });
+            });
+        }
+        // --- END OF REGISTRATION ---
+
         const form = document.getElementById('shareCodeForm');
         const input = document.getElementById('shareCodeInput');
         const resultDiv = document.getElementById('result');
@@ -96,7 +110,6 @@
         const counterSpan = document.getElementById('parseCounter');
         const apiStatusSpan = document.getElementById('apiStatus');
         
-        // --- API FALLBACK LOGIC ---
         const apiEndpoints = [
             'https://csreplay.moon-moon.tech',
             'https://improve-pig-banner-prove.trycloudflare.com'
@@ -105,47 +118,32 @@
         async function fetchWithFallback(path, options) {
             for (const endpoint of apiEndpoints) {
                 try {
-                    console.log(`Trying API endpoint: ${endpoint}${path}`);
                     const response = await fetch(`${endpoint}${path}`, options);
-                    if (response.ok) {
-                        console.log(`Success with endpoint: ${endpoint}${path}`);
-                        return response;
-                    }
-                    console.warn(`Request to ${endpoint}${path} failed with status: ${response.status}`);
+                    if (response.ok) return response;
                 } catch (error) {
-                    console.error(`Request to ${endpoint}${path} failed with error:`, error);
+                    console.error(`Request to ${endpoint}${path} failed:`, error);
                 }
             }
             throw new Error('All API endpoints are unreachable.');
         }
-        // --- END OF API FALLBACK LOGIC ---
 
-        // Function to check API status
         async function checkApiStatus() {
             try {
                 const response = await fetch(`${apiEndpoints[0]}/count`);
-                if (response.ok) {
-                    apiStatusSpan.classList.remove('bg-yellow-500', 'bg-red-500');
-                    apiStatusSpan.classList.add('bg-green-500');
-                    apiStatusSpan.title = 'Online';
-                } else {
-                    throw new Error('Primary API offline');
-                }
+                apiStatusSpan.className = `h-3 w-3 rounded-full ${response.ok ? 'bg-green-500' : 'bg-red-500'}`;
+                apiStatusSpan.title = response.ok ? 'Online' : 'Offline';
             } catch (error) {
-                apiStatusSpan.classList.remove('bg-yellow-500', 'bg-green-500');
-                apiStatusSpan.classList.add('bg-red-500');
+                apiStatusSpan.className = 'h-3 w-3 rounded-full bg-red-500';
                 apiStatusSpan.title = 'Offline';
             }
         }
 
         async function getInitialCount() {
             try {
-                const primaryEndpoint = apiEndpoints[0];
-                const response = await fetch(`${primaryEndpoint}/count`);
+                const response = await fetch(`${apiEndpoints[0]}/count`);
                 const data = await response.json();
                 counterSpan.textContent = data.count;
             } catch (error) {
-                console.error('Could not fetch initial count:', error);
                 counterSpan.textContent = 'N/A';
             }
         }
@@ -153,14 +151,11 @@
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             let shareCode = input.value.trim();
-
-            // Automatically extract the share code if a full steam URL is pasted
             const match = shareCode.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
             if (match && match[0]) {
                 shareCode = match[0];
-                input.value = shareCode; // Update the input field to show the clean code
+                input.value = shareCode;
             }
-
             if (!shareCode) {
                 displayError('Please enter a valid Share Code or Link.');
                 return;
@@ -178,7 +173,6 @@
                     counterSpan.textContent = data.newCount;
                 }
             } catch (error) {
-                console.error('Fetch error:', error);
                 displayError(error.message);
             } finally {
                 setLoading(false);
@@ -186,24 +180,22 @@
         });
 
         function displayLink(link) {
-            // Extract the filename from the URL (e.g., 'match.dem.bz2')
-            const filename = link.split('/').pop();
+            // Create a link that the Service Worker will intercept
+            const downloadUrl = `/download-demo?url=${encodeURIComponent(link)}`;
 
             resultDiv.innerHTML = `
-                <div class="flex flex-col items-center space-y-4">
+                <div class="flex flex-col items-center space-y-4 text-center">
+                    <p class="font-bold text-white">Your download link is ready!</p>
                     <a 
-                        href="${link}" 
-                        download="${filename}"
-                        rel="noopener noreferrer" 
-                        class="text-blue-400 hover:text-blue-300 font-medium underline"
-                    >${link}</a>
+                        href="${downloadUrl}" 
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
+                    >Download Demo</a>
                     <button id="copyButton" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-300">
-                        Copy Link
+                        Copy Original Link
                     </button>
                 </div>
             `;
             document.getElementById('copyButton').addEventListener('click', () => {
-                // A workaround for clipboard API in secure contexts/iframes
                 const textArea = document.createElement('textarea');
                 textArea.value = link;
                 document.body.appendChild(textArea);
@@ -212,7 +204,7 @@
                     document.execCommand('copy');
                     const copyButton = document.getElementById('copyButton');
                     copyButton.textContent = 'Copied!';
-                    setTimeout(() => { copyButton.textContent = 'Copy Link'; }, 2000);
+                    setTimeout(() => { copyButton.textContent = 'Copy Original Link'; }, 2000);
                 } catch (err) {
                     console.error('Failed to copy text: ', err);
                 }
@@ -235,7 +227,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             checkApiStatus();
             getInitialCount();
-            // Check status every 30 seconds
             setInterval(checkApiStatus, 30000);
         });
     </script>
