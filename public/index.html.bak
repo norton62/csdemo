@@ -24,7 +24,7 @@
         <!-- Header -->
         <div class="text-center mb-8">
             <h1 class="text-3xl font-bold text-white mb-2">CS2 Demo Link Generator</h1>
-            <p class="text-blue-200">Paste your match share code to get the demo download link.</p>
+            <p class="text-blue-200">A tool for users of <a href="https://cswatch.in/" target="_blank" rel="noopener noreferrer" class="underline hover:text-white">CSWatch.in</a> to easily get demo download links.</p>
         </div>
 
         <!-- Input Form -->
@@ -59,9 +59,12 @@
         </div>
 
         <!-- Footer with Creator Tag and Counter -->
-        <div class="text-center mt-8 text-blue-200 text-sm">
-            <p class="mb-2">
+        <div class="text-center mt-8 text-blue-200 text-sm space-y-2">
+            <p>
                 Created by <a href="https://steamcommunity.com/id/norton99/" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">norton99</a>
+            </p>
+            <p>
+                Special thanks to <a href="https://github.com/m0onmo0n" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.
             </p>
             <p>
                 Successful links generated: <span id="parseCounter" class="font-bold">...</span>

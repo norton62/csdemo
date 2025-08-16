@@ -9,7 +9,7 @@
     <style>
         /* A little extra style for a nice gradient background */
         body {
-            background: linear-gradient(to right, #1e3a8a, #3b82f6);
+            background: linear-gradient(to right, #1e3a_8a, #3b82f6);
         }
         /* Style for the result link */
         #result a {
@@ -17,7 +17,7 @@
         }
     </style>
 </head>
-<body class="font-sans antialiased text-gray-100 flex items-center justify-center min-h-screen">
+<body class="font-sans antialiased text-gray-100 flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-gray-800 bg-opacity-50 backdrop-blur-md rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4">
         
@@ -27,6 +27,17 @@
             <p class="text-blue-200">A tool for users of <a href="https://cswatch.in/" target="_blank" rel="noopener noreferrer" class="underline hover:text-white">CSWatch.in</a> to easily get demo download links.</p>
         </div>
 
+        <!-- How to Find Your Code Section -->
+        <div class="mb-8 text-left bg-gray-900 bg-opacity-50 p-4 rounded-lg">
+            <h2 class="font-bold text-white mb-2">How to find your Share Code:</h2>
+            <ol class="list-decimal list-inside text-sm text-blue-200 space-y-1">
+                <li>Open CS2 and go to the "Watch" tab.</li>
+                <li>Click on "Your Matches" to see your match history.</li>
+                <li>Select the match you want.</li>
+                <li>Click the "Copy Share Link" button in the bottom right.</li>
+            </ol>
+        </div>
+
         <!-- Input Form -->
         <form id="shareCodeForm">
             <div class="mb-4">
@@ -34,7 +45,7 @@
                 <input 
                     type="text" 
                     id="shareCodeInput"
-                    placeholder="e.g., CSGO-xxxxx-xxxxx-....."
+                    placeholder="Paste your Share Code here..."
                     class="w-full px-4 py-3 bg-gray-700 text-white border-2 border-transparent rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-300"
                     required
                 >
@@ -66,9 +77,12 @@
             <p>
                 Special thanks to <a href="https://github.com/m0onmo0n" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.
             </p>
-            <p>
-                Successful links generated: <span id="parseCounter" class="font-bold">...</span>
-            </p>
+            <div class="flex items-center justify-center space-x-2">
+                <span>API Status:</span>
+                <span id="apiStatus" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
+                <span class="font-bold">|</span>
+                <span>Successful links generated: <span id="parseCounter" class="font-bold">...</span></span>
+            </div>
         </div>
 
     </div>
@@ -81,6 +95,7 @@
         const spinner = document.getElementById('spinner');
         const buttonText = document.getElementById('buttonText');
         const counterSpan = document.getElementById('parseCounter');
+        const apiStatusSpan = document.getElementById('apiStatus');
         
         // --- API FALLBACK LOGIC ---
         const apiEndpoints = [
@@ -88,7 +103,6 @@
             'https://improve-pig-banner-prove.trycloudflare.com'
         ];
 
-        // This function tries to fetch from a list of URLs until one succeeds.
         async function fetchWithFallback(path, options) {
             for (const endpoint of apiEndpoints) {
                 try {
@@ -96,26 +110,38 @@
                     const response = await fetch(`${endpoint}${path}`, options);
                     if (response.ok) {
                         console.log(`Success with endpoint: ${endpoint}${path}`);
-                        return response; // Return the successful response
+                        return response;
                     }
                     console.warn(`Request to ${endpoint}${path} failed with status: ${response.status}`);
                 } catch (error) {
                     console.error(`Request to ${endpoint}${path} failed with error:`, error);
-                    // If it fails, the loop will continue to the next endpoint.
                 }
             }
-            // If all endpoints fail, throw an error.
             throw new Error('All API endpoints are unreachable.');
         }
         // --- END OF API FALLBACK LOGIC ---
 
+        // Function to check API status
+        async function checkApiStatus() {
+            try {
+                const response = await fetch(`${apiEndpoints[0]}/count`);
+                if (response.ok) {
+                    apiStatusSpan.classList.remove('bg-yellow-500', 'bg-red-500');
+                    apiStatusSpan.classList.add('bg-green-500');
+                    apiStatusSpan.title = 'Online';
+                } else {
+                    throw new Error('Primary API offline');
+                }
+            } catch (error) {
+                apiStatusSpan.classList.remove('bg-yellow-500', 'bg-green-500');
+                apiStatusSpan.classList.add('bg-red-500');
+                apiStatusSpan.title = 'Offline';
+            }
+        }
 
-        // Function to fetch the initial count when the page loads
         async function getInitialCount() {
             try {
-                // Always fetch the initial count from the primary server for consistency.
                 const primaryEndpoint = apiEndpoints[0];
-                console.log(`Fetching initial count from primary endpoint: ${primaryEndpoint}/count`);
                 const response = await fetch(`${primaryEndpoint}/count`);
                 const data = await response.json();
                 counterSpan.textContent = data.count;
@@ -125,35 +151,25 @@
             }
         }
 
-        // Listen for form submission
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const shareCode = input.value.trim();
             if (!shareCode) {
                 displayError('Please enter a share code.');
                 return;
             }
-
             setLoading(true);
-
             try {
                 const response = await fetchWithFallback('/decode', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ shareCode: shareCode }),
                 });
-
                 const data = await response.json();
-
                 displayLink(data.downloadLink);
-                // The count will update to reflect the count of whichever server responded.
                 if (data.newCount !== undefined) {
                     counterSpan.textContent = data.newCount;
                 }
-
             } catch (error) {
                 console.error('Fetch error:', error);
                 displayError(error.message);
@@ -162,42 +178,56 @@
             }
         });
 
-        // Function to display the clickable download link
         function displayLink(link) {
             resultDiv.innerHTML = `
-                <a 
-                    href="${link}" 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    class="text-blue-400 hover:text-blue-300 font-medium underline transition duration-300"
-                >
-                    ${link}
-                </a>
+                <div class="flex flex-col items-center space-y-4">
+                    <a 
+                        href="${link}" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        class="text-blue-400 hover:text-blue-300 font-medium underline"
+                    >${link}</a>
+                    <button id="copyButton" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-300">
+                        Copy Link
+                    </button>
+                </div>
             `;
+            document.getElementById('copyButton').addEventListener('click', () => {
+                // A workaround for clipboard API in secure contexts/iframes
+                const textArea = document.createElement('textarea');
+                textArea.value = link;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const copyButton = document.getElementById('copyButton');
+                    copyButton.textContent = 'Copied!';
+                    setTimeout(() => { copyButton.textContent = 'Copy Link'; }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                }
+                document.body.removeChild(textArea);
+            });
         }
 
-        // Function to display an error message
         function displayError(message) {
             resultDiv.innerHTML = `<p class="text-red-400 font-semibold">${message}</p>`;
         }
 
-        // Function to manage the loading state of the button
         function setLoading(isLoading) {
-            if (isLoading) {
-                submitButton.disabled = true;
-                spinner.classList.remove('hidden');
-                buttonText.textContent = 'Decoding...';
-                submitButton.classList.add('opacity-75', 'cursor-not-allowed');
-            } else {
-                submitButton.disabled = false;
-                spinner.classList.add('hidden');
-                buttonText.textContent = 'Get Download Link';
-                submitButton.classList.remove('opacity-75', 'cursor-not-allowed');
-            }
+            submitButton.disabled = isLoading;
+            spinner.classList.toggle('hidden', !isLoading);
+            buttonText.textContent = isLoading ? 'Decoding...' : 'Get Download Link';
+            submitButton.classList.toggle('opacity-75', isLoading);
+            submitButton.classList.toggle('cursor-not-allowed', isLoading);
         }
 
-        // Load the initial count when the page is ready
-        document.addEventListener('DOMContentLoaded', getInitialCount);
+        document.addEventListener('DOMContentLoaded', () => {
+            checkApiStatus();
+            getInitialCount();
+            // Check status every 30 seconds
+            setInterval(checkApiStatus, 30000);
+        });
     </script>
 </body>
 </html>
