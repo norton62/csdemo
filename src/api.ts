@@ -83,6 +83,7 @@ const server = http.createServer(async (req, res) => {
     // --- Endpoint for getting the count ---
     if (requestUrl.pathname === '/count' && req.method === 'GET') {
 <<<<<<< HEAD
+<<<<<<< HEAD
         res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ count: successfulParses }));
         return;
     }
@@ -122,6 +123,10 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ count: successfulParses }));
 >>>>>>> parent of f6d08a8 (9)
+=======
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ count: successfulParses }));
+>>>>>>> parent of f6d08a8 (9)
         return;
     }
 
@@ -142,9 +147,12 @@ const server = http.createServer(async (req, res) => {
                 const projectRoot = process.cwd();
                 const scriptPath = path.join(projectRoot, 'dist', 'index.js');
 <<<<<<< HEAD
+<<<<<<< HEAD
                 const command = `node "${scriptPath}" demo-url ${shareCode.replace(/[^a-zA-Z0-9-]/g, '')}`;
                 const execOptions: ExecOptions = { cwd: projectRoot, timeout: 30000 };
 =======
+=======
+>>>>>>> parent of f6d08a8 (9)
                 const sanitizedShareCode = shareCode.replace(/[^a-zA-Z0-9-]/g, '');
                 const command = `node "${scriptPath}" demo-url ${sanitizedShareCode}`;
 
@@ -153,6 +161,7 @@ const server = http.createServer(async (req, res) => {
                 };
 
                 console.log(`Executing command: ${command} in CWD: ${projectRoot}`);
+<<<<<<< HEAD
 >>>>>>> parent of f6d08a8 (9)
 
                 exec(command, execOptions, (error, stdout, stderr) => {
@@ -167,11 +176,18 @@ const server = http.createServer(async (req, res) => {
                         console.error(`Exec error: ${errorMessage}`);
                         res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: `Server error: ${errorMessage.trim()}` }));
 =======
+=======
+
+                exec(command, execOptions, (error, stdout, stderr) => {
+>>>>>>> parent of f6d08a8 (9)
                     if (error || stderr) {
                         const errorMessage = stderr || (error ? error.message : 'Unknown execution error');
                         console.error(`Execution error: ${errorMessage}`);
                         res.writeHead(500, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ error: `Server error: ${errorMessage.trim()}` }));
+<<<<<<< HEAD
+>>>>>>> parent of f6d08a8 (9)
+=======
 >>>>>>> parent of f6d08a8 (9)
                         return;
                     }

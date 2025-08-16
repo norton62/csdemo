@@ -88,7 +88,10 @@
 
     <script>
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> parent of f6d08a8 (9)
         // --- SERVICE WORKER REGISTRATION ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -115,11 +118,17 @@
         
         const apiEndpoints = [
 <<<<<<< HEAD
+<<<<<<< HEAD
             'https://consultants-admissions-site-challenge.trycloudflare.com'
 			'https://csreplay.moon-moon.tech',
             
         ];
         let activeApiEndpoint = apiEndpoints[0];
+=======
+            'https://csreplay.moon-moon.tech',
+            'https://improve-pig-banner-prove.trycloudflare.com'
+        ];
+>>>>>>> parent of f6d08a8 (9)
 =======
             'https://csreplay.moon-moon.tech',
             'https://improve-pig-banner-prove.trycloudflare.com'
@@ -133,6 +142,7 @@
 
                 try {
 <<<<<<< HEAD
+<<<<<<< HEAD
                     const response = await fetch(`${endpoint}${path}`, {
                         ...options,
                         signal: controller.signal
@@ -142,6 +152,10 @@
                         activeApiEndpoint = endpoint;
                         return response;
                     }
+=======
+                    const response = await fetch(`${endpoint}${path}`, options);
+                    if (response.ok) return response;
+>>>>>>> parent of f6d08a8 (9)
 =======
                     const response = await fetch(`${endpoint}${path}`, options);
                     if (response.ok) return response;
@@ -213,9 +227,12 @@
 
         function displayLink(link) {
 <<<<<<< HEAD
+<<<<<<< HEAD
             const proxyUrl = `${activeApiEndpoint}/download?url=${encodeURIComponent(link)}`;
             const filename = link.split('/').pop();
 =======
+=======
+>>>>>>> parent of f6d08a8 (9)
             // Create a link that the Service Worker will intercept
             const downloadUrl = `/download-demo?url=${encodeURIComponent(link)}`;
 

@@ -99,9 +99,14 @@
         const apiEndpoints = [
             'https://csreplay.moon-moon.tech',
 <<<<<<< HEAD
+<<<<<<< HEAD
             'https://consultants-admissions-site-challenge.trycloudflare.com'
         ];
         let activeApiEndpoint = apiEndpoints[0];
+=======
+            'https://improve-pig-banner-prove.trycloudflare.com'
+        ];
+>>>>>>> parent of f6d08a8 (9)
 =======
             'https://improve-pig-banner-prove.trycloudflare.com'
         ];
@@ -114,6 +119,7 @@
 
                 try {
 <<<<<<< HEAD
+<<<<<<< HEAD
                     const response = await fetch(`${endpoint}${path}`, {
                         ...options,
                         signal: controller.signal
@@ -122,18 +128,27 @@
                     if (response.ok) {
                         activeApiEndpoint = endpoint;
 =======
+=======
+>>>>>>> parent of f6d08a8 (9)
                     console.log(`Trying API endpoint: ${endpoint}${path}`);
                     const response = await fetch(`${endpoint}${path}`, options);
                     if (response.ok) {
                         console.log(`Success with endpoint: ${endpoint}${path}`);
+<<<<<<< HEAD
+>>>>>>> parent of f6d08a8 (9)
+=======
 >>>>>>> parent of f6d08a8 (9)
                         return response;
                     }
                     console.warn(`Request to ${endpoint}${path} failed with status: ${response.status}`);
                 } catch (error) {
 <<<<<<< HEAD
+<<<<<<< HEAD
                     clearTimeout(timeoutId);
                     console.error(`Request to ${endpoint}${path} failed:`, error);
+=======
+                    console.error(`Request to ${endpoint}${path} failed with error:`, error);
+>>>>>>> parent of f6d08a8 (9)
 =======
                     console.error(`Request to ${endpoint}${path} failed with error:`, error);
 >>>>>>> parent of f6d08a8 (9)
@@ -149,6 +164,7 @@
             const timeoutId = setTimeout(() => controller.abort(), 5000);
             try {
 <<<<<<< HEAD
+<<<<<<< HEAD
                 const response = await fetch(`${apiEndpoints[0]}/count`, { signal: controller.signal });
                 clearTimeout(timeoutId);
                 apiStatusSpan.className = `h-3 w-3 rounded-full ${response.ok ? 'bg-green-500' : 'bg-red-500'}`;
@@ -156,6 +172,19 @@
             } catch (error) {
                 clearTimeout(timeoutId);
                 apiStatusSpan.className = 'h-3 w-3 rounded-full bg-red-500';
+=======
+                const response = await fetch(`${apiEndpoints[0]}/count`);
+                if (response.ok) {
+                    apiStatusSpan.classList.remove('bg-yellow-500', 'bg-red-500');
+                    apiStatusSpan.classList.add('bg-green-500');
+                    apiStatusSpan.title = 'Online';
+                } else {
+                    throw new Error('Primary API offline');
+                }
+            } catch (error) {
+                apiStatusSpan.classList.remove('bg-yellow-500', 'bg-green-500');
+                apiStatusSpan.classList.add('bg-red-500');
+>>>>>>> parent of f6d08a8 (9)
 =======
                 const response = await fetch(`${apiEndpoints[0]}/count`);
                 if (response.ok) {
@@ -223,7 +252,11 @@
 
         function displayLink(link) {
 <<<<<<< HEAD
+<<<<<<< HEAD
             const proxyUrl = `${activeApiEndpoint}/download?url=${encodeURIComponent(link)}`;
+=======
+            // Extract the filename from the URL (e.g., 'match.dem.bz2')
+>>>>>>> parent of f6d08a8 (9)
 =======
             // Extract the filename from the URL (e.g., 'match.dem.bz2')
 >>>>>>> parent of f6d08a8 (9)

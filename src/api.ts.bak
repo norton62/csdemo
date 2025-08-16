@@ -11,6 +11,7 @@ import path from 'path';
 let successfulParses = 0;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 function loadCount() {
     try {
         if (fs.existsSync(countFilePath)) {
@@ -33,6 +34,8 @@ function saveCount() {
     }
 }
 
+=======
+>>>>>>> parent of f6d08a8 (9)
 =======
 >>>>>>> parent of f6d08a8 (9)
 // ========================================================================================
@@ -149,6 +152,9 @@ const server = http.createServer(async (req, res) => {
                     saveCount();
 =======
                     successfulParses++; // Increment the counter on success
+<<<<<<< HEAD
+>>>>>>> parent of f6d08a8 (9)
+=======
 >>>>>>> parent of f6d08a8 (9)
                     const downloadLink = urlMatch[0];
                     console.log(`Success: ${downloadLink}. Total: ${successfulParses}`);
@@ -165,7 +171,11 @@ const server = http.createServer(async (req, res) => {
 
 const PORT = 3000;
 <<<<<<< HEAD
+<<<<<<< HEAD
 loadCount();
+=======
+
+>>>>>>> parent of f6d08a8 (9)
 =======
 
 >>>>>>> parent of f6d08a8 (9)
