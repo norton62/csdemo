@@ -38,7 +38,7 @@
         </div>
 
         <!-- Input Form -->
-        <form id="shareCodeForm">
+        <form id="shareCodeForm" onsubmit="handleSubmit(event)">
             <div class="mb-4">
                 <label for="shareCodeInput" class="sr-only">Share Code</label>
                 <input 
@@ -87,7 +87,6 @@
     </div>
 
     <script>
-        const form = document.getElementById('shareCodeForm');
         const input = document.getElementById('shareCodeInput');
         const resultDiv = document.getElementById('result');
         const submitButton = document.getElementById('submitButton');
@@ -98,32 +97,27 @@
         
         const apiEndpoints = [
             'https://csreplay.moon-moon.tech',
-            'https://improve-pig-banner-prove.trycloudflare.com'
+            'https://consultants-admissions-site-challenge.trycloudflare.com'
         ];
-        let activeApiEndpoint = apiEndpoints[0]; // Store the active endpoint
+        let activeApiEndpoint = apiEndpoints[0];
 
         async function fetchWithFallback(path, options) {
             for (const endpoint of apiEndpoints) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
 
                 try {
-                    console.log(`Trying API endpoint: ${endpoint}${path}`);
                     const response = await fetch(`${endpoint}${path}`, {
                         ...options,
-                        signal: controller.signal // Pass the abort signal to fetch
+                        signal: controller.signal
                     });
-                    
-                    clearTimeout(timeoutId); // Clear the timeout if the request succeeds
-
+                    clearTimeout(timeoutId);
                     if (response.ok) {
-                        console.log(`Success with endpoint: ${endpoint}${path}`);
                         activeApiEndpoint = endpoint;
                         return response;
                     }
-                    console.warn(`Request to ${endpoint}${path} failed with status: ${response.status}`);
                 } catch (error) {
-                    clearTimeout(timeoutId); // Clear the timeout if the request fails
+                    clearTimeout(timeoutId);
                     console.error(`Request to ${endpoint}${path} failed:`, error);
                 }
             }
@@ -133,7 +127,6 @@
         async function checkApiStatus() {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
-
             try {
                 const response = await fetch(`${apiEndpoints[0]}/count`, { signal: controller.signal });
                 clearTimeout(timeoutId);
@@ -156,8 +149,9 @@
             }
         }
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        // Renamed the function and it's now called directly from the form's onsubmit attribute
+        async function handleSubmit(event) {
+            event.preventDefault(); // This is the most important line
             let shareCode = input.value.trim();
             const match = shareCode.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
             if (match && match[0]) {
@@ -185,12 +179,11 @@
             } finally {
                 setLoading(false);
             }
-        });
+        }
 
         function displayLink(link) {
             const proxyUrl = `${activeApiEndpoint}/download?url=${encodeURIComponent(link)}`;
             const filename = link.split('/').pop();
-
             resultDiv.innerHTML = `
                 <div class="flex flex-col items-center space-y-4 text-center">
                     <p class="font-bold text-white">Your download is ready!</p>
