@@ -97,20 +97,34 @@
         const apiStatusSpan = document.getElementById('apiStatus');
         
         const apiEndpoints = [
-            'https://nascar-dating-production-convert.trycloudflare.com',
-            'https://csreplay.moon-moon.tech'
+            'https://consultants-admissions-site-challenge.trycloudflare.com'
+			'https://csreplay.moon-moon.tech',
+           
         ];
         let activeApiEndpoint = apiEndpoints[0]; // Store the active endpoint
 
         async function fetchWithFallback(path, options) {
             for (const endpoint of apiEndpoints) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
+
                 try {
-                    const response = await fetch(`${endpoint}${path}`, options);
+                    console.log(`Trying API endpoint: ${endpoint}${path}`);
+                    const response = await fetch(`${endpoint}${path}`, {
+                        ...options,
+                        signal: controller.signal // Pass the abort signal to fetch
+                    });
+                    
+                    clearTimeout(timeoutId); // Clear the timeout if the request succeeds
+
                     if (response.ok) {
-                        activeApiEndpoint = endpoint; // Update the active endpoint on success
+                        console.log(`Success with endpoint: ${endpoint}${path}`);
+                        activeApiEndpoint = endpoint;
                         return response;
                     }
+                    console.warn(`Request to ${endpoint}${path} failed with status: ${response.status}`);
                 } catch (error) {
+                    clearTimeout(timeoutId); // Clear the timeout if the request fails
                     console.error(`Request to ${endpoint}${path} failed:`, error);
                 }
             }
@@ -118,11 +132,16 @@
         }
 
         async function checkApiStatus() {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
             try {
-                const response = await fetch(`${apiEndpoints[0]}/count`);
+                const response = await fetch(`${apiEndpoints[0]}/count`, { signal: controller.signal });
+                clearTimeout(timeoutId);
                 apiStatusSpan.className = `h-3 w-3 rounded-full ${response.ok ? 'bg-green-500' : 'bg-red-500'}`;
                 apiStatusSpan.title = response.ok ? 'Online' : 'Offline';
             } catch (error) {
+                clearTimeout(timeoutId);
                 apiStatusSpan.className = 'h-3 w-3 rounded-full bg-red-500';
                 apiStatusSpan.title = 'Offline';
             }
@@ -130,6 +149,7 @@
 
         async function getInitialCount() {
             try {
+                // We don't need a long timeout here, just a quick check.
                 const response = await fetch(`${apiEndpoints[0]}/count`);
                 const data = await response.json();
                 counterSpan.textContent = data.count;
@@ -170,7 +190,6 @@
         });
 
         function displayLink(link) {
-            // Construct the proxy URL using the currently active API endpoint
             const proxyUrl = `${activeApiEndpoint}/download?url=${encodeURIComponent(link)}`;
             const filename = link.split('/').pop();
 
@@ -189,7 +208,7 @@
             `;
             document.getElementById('copyButton').addEventListener('click', () => {
                 const textArea = document.createElement('textarea');
-                textArea.value = link; // Copy the original Valve link
+                textArea.value = link;
                 document.body.appendChild(textArea);
                 textArea.select();
                 try {

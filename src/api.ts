@@ -89,10 +89,22 @@ const server = http.createServer(async (req, res) => {
         }
 
         console.log(`Proxying download for: ${demoUrl}`);
-        // Use the native http.get to fetch the file from Valve's server
+        
         http.get(demoUrl, (proxyRes) => {
-            // Forward the headers from Valve's response to our user
-            res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+            // Extract the filename from the original URL
+            const filename = demoUrl.split('/').pop() || 'cs2-demo.dem.bz2';
+
+            // Set the Content-Disposition header to tell the browser the correct filename
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+            // Forward other important headers from Valve's response
+            if (proxyRes.headers['content-type']) {
+                res.setHeader('Content-Type', proxyRes.headers['content-type']);
+            }
+            if (proxyRes.headers['content-length']) {
+                res.setHeader('Content-Length', proxyRes.headers['content-length']);
+            }
+
             // Pipe the data directly to the user
             proxyRes.pipe(res);
         }).on('error', (err) => {
@@ -114,17 +126,11 @@ const server = http.createServer(async (req, res) => {
                 const projectRoot = process.cwd();
                 const scriptPath = path.join(projectRoot, 'dist', 'index.js');
                 const command = `node "${scriptPath}" demo-url ${shareCode.replace(/[^a-zA-Z0-9-]/g, '')}`;
-                
-                // Add a timeout to prevent the process from hanging indefinitely
-                const execOptions: ExecOptions = { 
-                    cwd: projectRoot,
-                    timeout: 30000 // 30 seconds
-                };
+                const execOptions: ExecOptions = { cwd: projectRoot, timeout: 30000 };
 
                 console.log(`Executing: ${command}`);
                 exec(command, execOptions, (error, stdout, stderr) => {
                     if (error) {
-                        // Check if the error was due to a timeout
                         if (error.signal === 'SIGTERM') {
                             console.error('Execution timed out.');
                             res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Server error: Decoding timed out. The Steam client may not be running.' }));
