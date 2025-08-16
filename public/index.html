@@ -87,6 +87,24 @@
     </div>
 
     <script>
+<<<<<<< HEAD
+=======
+        // --- SERVICE WORKER REGISTRATION ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                })
+                .catch(error => {
+                    console.error('Service Worker registration failed:', error);
+                });
+            });
+        }
+        // --- END OF REGISTRATION ---
+
+        const form = document.getElementById('shareCodeForm');
+>>>>>>> parent of f6d08a8 (9)
         const input = document.getElementById('shareCodeInput');
         const resultDiv = document.getElementById('result');
         const submitButton = document.getElementById('submitButton');
@@ -96,11 +114,17 @@
         const apiStatusSpan = document.getElementById('apiStatus');
         
         const apiEndpoints = [
+<<<<<<< HEAD
             'https://consultants-admissions-site-challenge.trycloudflare.com'
 			'https://csreplay.moon-moon.tech',
             
         ];
         let activeApiEndpoint = apiEndpoints[0];
+=======
+            'https://csreplay.moon-moon.tech',
+            'https://improve-pig-banner-prove.trycloudflare.com'
+        ];
+>>>>>>> parent of f6d08a8 (9)
 
         async function fetchWithFallback(path, options) {
             for (const endpoint of apiEndpoints) {
@@ -108,6 +132,7 @@
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
 
                 try {
+<<<<<<< HEAD
                     const response = await fetch(`${endpoint}${path}`, {
                         ...options,
                         signal: controller.signal
@@ -117,6 +142,10 @@
                         activeApiEndpoint = endpoint;
                         return response;
                     }
+=======
+                    const response = await fetch(`${endpoint}${path}`, options);
+                    if (response.ok) return response;
+>>>>>>> parent of f6d08a8 (9)
                 } catch (error) {
                     clearTimeout(timeoutId);
                     console.error(`Request to ${endpoint}${path} failed:`, error);
@@ -183,14 +212,19 @@
         }
 
         function displayLink(link) {
+<<<<<<< HEAD
             const proxyUrl = `${activeApiEndpoint}/download?url=${encodeURIComponent(link)}`;
             const filename = link.split('/').pop();
+=======
+            // Create a link that the Service Worker will intercept
+            const downloadUrl = `/download-demo?url=${encodeURIComponent(link)}`;
+
+>>>>>>> parent of f6d08a8 (9)
             resultDiv.innerHTML = `
                 <div class="flex flex-col items-center space-y-4 text-center">
-                    <p class="font-bold text-white">Your download is ready!</p>
+                    <p class="font-bold text-white">Your download link is ready!</p>
                     <a 
-                        href="${proxyUrl}" 
-                        download="${filename}"
+                        href="${downloadUrl}" 
                         class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
                     >Download Demo</a>
                     <button id="copyButton" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-300">
