@@ -26,6 +26,7 @@ const isRateLimited = (ip: string): boolean => {
 // HTTP SERVER LOGIC
 // ========================================================================================
 const server = http.createServer(async (req, res) => {
+    // Allow requests from your Netlify domain
     const allowedOrigin = 'https://csreplay.xyz';
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -58,6 +59,7 @@ const server = http.createServer(async (req, res) => {
                     throw new Error('Missing shareCode in request body.');
                 }
 
+                // This method works reliably on your local machine
                 const projectRoot = process.cwd();
                 const scriptPath = path.join(projectRoot, 'dist', 'index.js');
                 const sanitizedShareCode = shareCode.replace(/[^a-zA-Z0-9-]/g, '');
@@ -105,9 +107,9 @@ const server = http.createServer(async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-server.listen(Number(PORT), '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 CS2 Share Code Decoder API is running on port ${PORT}`);
     console.log(`   Accepting connections from any IP.`);
 });

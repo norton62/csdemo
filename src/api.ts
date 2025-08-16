@@ -4,6 +4,12 @@ import { exec, ExecOptions } from 'child_process';
 import path from 'path';
 
 // ========================================================================================
+// COUNTER LOGIC
+// ========================================================================================
+// A simple in-memory counter. This will reset if the server restarts.
+let successfulParses = 0;
+
+// ========================================================================================
 // SECURITY: RATE LIMITING
 // ========================================================================================
 const rateLimitStore: { [ip: string]: number[] } = {};
@@ -26,10 +32,9 @@ const isRateLimited = (ip: string): boolean => {
 // HTTP SERVER LOGIC
 // ========================================================================================
 const server = http.createServer(async (req, res) => {
-    // Allow requests from your Netlify domain
     const allowedOrigin = 'https://csreplay.xyz';
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); // Allow GET for the counter
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
@@ -46,6 +51,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     const requestUrl = new URL(req.url || '', `http://${req.headers.host}`);
+
+    // --- Endpoint for getting the count ---
+    if (requestUrl.pathname === '/count' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ count: successfulParses }));
+        return;
+    }
+
+    // --- Endpoint for decoding the share code ---
     if (requestUrl.pathname === '/decode' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => {
@@ -59,7 +73,6 @@ const server = http.createServer(async (req, res) => {
                     throw new Error('Missing shareCode in request body.');
                 }
 
-                // This method works reliably on your local machine
                 const projectRoot = process.cwd();
                 const scriptPath = path.join(projectRoot, 'dist', 'index.js');
                 const sanitizedShareCode = shareCode.replace(/[^a-zA-Z0-9-]/g, '');
@@ -88,10 +101,11 @@ const server = http.createServer(async (req, res) => {
                         return;
                     }
 
+                    successfulParses++; // Increment the counter on success
                     const downloadLink = urlMatch[0];
-                    console.log(`Successfully parsed link: ${downloadLink}`);
+                    console.log(`Successfully parsed link: ${downloadLink}. Total parses: ${successfulParses}`);
                     res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ downloadLink: downloadLink }));
+                    res.end(JSON.stringify({ downloadLink: downloadLink, newCount: successfulParses }));
                 });
 
             } catch (error) {
