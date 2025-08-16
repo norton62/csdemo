@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Under Maintenance - CS2 Demo Link Generator</title>
+    <!-- Using Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* A little extra style for a nice gradient background */
+        body {
+            background: linear-gradient(to right, #4b5563, #1f2937);
+        }
+    </style>
+</head>
+<body class="font-sans antialiased text-gray-100 flex items-center justify-center min-h-screen">
+
+    <div class="bg-gray-800 bg-opacity-50 backdrop-blur-md rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4 text-center">
+        
+        <!-- Maintenance Icon -->
+        <div class="mx-auto mb-6 h-16 w-16 text-yellow-400">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.471-2.471a1.125 1.125 0 011.591 1.591l-2.471 2.471M11.42 15.17l-2.47-2.47a1.125 1.125 0 00-1.591 1.591l2.47 2.471m0 0a9 9 0 1115.91-11.588 9 9 0 01-15.91 11.588z" />
+            </svg>
+        </div>
+
+        <!-- Header -->
+        <h1 class="text-3xl font-bold text-white mb-4">Under Maintenance</h1>
+        <p class="text-gray-300 mb-8">
+            The CS2 Demo Link Generator is temporarily down while we move to a new and improved server.
+        </p>
+
+        <!-- Time Estimate -->
+        <div class="bg-gray-900 rounded-lg p-4">
+            <p class="text-gray-400">We expect to be back online around:</p>
+            <p id="eta" class="text-xl font-bold text-yellow-400 mt-1">7:00 PM (BST)</p>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-gray-400 text-sm">
+            <p>Thank you for your patience.</p>
+        </div>
+    </div>
+
+</body>
+</html>
