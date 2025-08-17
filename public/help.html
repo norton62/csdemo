@@ -27,14 +27,14 @@
             <div>
                 <h2 class="text-xl font-bold text-white mb-2">Step 1: Open Developer Tools</h2>
                 <p>In your browser (Chrome, Firefox, or Edge), press the <kbd class="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">F12</kbd> key to open the Developer Tools panel. Then, click on the "Network" tab.</p>
-                <img src="https://i.imgur.com/9lZJ5fG.png" alt="Developer Tools Network Tab" class="mt-2 rounded-lg shadow-lg" onerror="this.src='https://placehold.co/600x150/1f2937/ffffff?text=Image+Not+Found'">
+                <img src="./step1.png" alt="Developer Tools Network Tab" class="mt-2 rounded-lg shadow-lg">
             </div>
 
             <!-- Step 2 -->
             <div>
                 <h2 class="text-xl font-bold text-white mb-2">Step 2: Enable "Preserve log"</h2>
                 <p>Make sure the "Preserve log" checkbox is ticked. This is crucial as it prevents the log from being cleared when the page changes.</p>
-                 <img src="https://i.imgur.com/AUPiYfM.png" alt="Preserve Log Checkbox" class="mt-2 rounded-lg shadow-lg" onerror="this.src='https://placehold.co/600x100/1f2937/ffffff?text=Image+Not+Found'">
+                 <img src="./step2.png" alt="Preserve Log Checkbox" class="mt-2 rounded-lg shadow-lg">
             </div>
 
             <!-- Step 3 -->
@@ -47,14 +47,14 @@
             <div>
                 <h2 class="text-xl font-bold text-white mb-2">Step 4: Find the Redirect</h2>
                 <p>In the network log, find the request with a status of <span class="font-mono bg-yellow-900 text-yellow-300 px-1 rounded">302</span>. This is the redirect that contains the link. Click on it to see the details.</p>
-                <img src="https://i.imgur.com/3h4g3fA.png" alt="Find the 302 Redirect" class="mt-2 rounded-lg shadow-lg" onerror="this.src='https://placehold.co/600x150/1f2937/ffffff?text=Image+Not+Found'">
+                <img src="./step4.png" alt="Find the 302 Redirect" class="mt-2 rounded-lg shadow-lg">
             </div>
 
             <!-- Step 5 -->
             <div>
                 <h2 class="text-xl font-bold text-white mb-2">Step 5: Copy the Share Code</h2>
-                <p>In the "Headers" tab for the redirect, scroll down to "Response Headers" and find the <span class="font-mono bg-gray-700 px-1 rounded">Location</span> header. This is the `steam://` link. You only need to copy the Share Code part (`CSGO-xxxxx...`).</p>
-                <img src="https://i.imgur.com/8fGgHjB.png" alt="Copy Share Code from Location Header" class="mt-2 rounded-lg shadow-lg" onerror="this.src='https://placehold.co/600x200/1f2937/ffffff?text=Image+Not+Found'">
+                <p>In the "Headers" tab for the redirect, look under the "General" section for the <span class="font-mono bg-gray-700 px-1 rounded">Request URL</span>. This is the `steam://` link. You only need to copy the Share Code part (`CSGO-xxxxx...`).</p>
+                <img src="./step5.png" alt="Copy Share Code from Location Header" class="mt-2 rounded-lg shadow-lg">
             </div>
         </div>
 

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help - How to get a Share Code</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(to right, #1e3a8a, #3b82f6); }
+        .content-box {
+            background: rgba(31, 41, 55, 0.8);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="font-sans antialiased text-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="content-box rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4">
+        
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">How to Capture a Share Code from CSstats.gg</h1>
+            <p class="text-blue-200">This guide will show you how to manually capture the Share Code using your browser's developer tools.</p>
+        </div>
+
+        <div class="space-y-6 text-left text-gray-300">
+            <!-- Step 1 -->
+            <div>
+                <h2 class="text-xl font-bold text-white mb-2">Step 1: Open Developer Tools</h2>
+                <p>In your browser (Chrome, Firefox, or Edge), press the <kbd class="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">F12</kbd> key to open the Developer Tools panel. Then, click on the "Network" tab.</p>
+                <img src="https://i.imgur.com/9lZJ5fG.png" alt="Developer Tools Network Tab" class="mt-2 rounded-lg shadow-lg" onerror="this.src='https://placehold.co/600x150/1f2937/ffffff?text=Image+Not+Found'">
+            </div>
+
+            <!-- Step 2 -->
+            <div>
+                <h2 class="text-xl font-bold text-white mb-2">Step 2: Enable "Preserve log"</h2>
+                <p>Make sure the "Preserve log" checkbox is ticked. This is crucial as it prevents the log from being cleared when the page changes.</p>
+                 <img src="https://i.imgur.com/AUPiYfM.png" alt="Preserve Log Checkbox" class="mt-2 rounded-lg shadow-lg" onerror="this.src='https://placehold.co/600x100/1f2937/ffffff?text=Image+Not+Found'">
+            </div>
+
+            <!-- Step 3 -->
+            <div>
+                <h2 class="text-xl font-bold text-white mb-2">Step 3: Paste the CSstats.gg Link</h2>
+                <p>With the developer tools still open, paste the "Watch Demo" link from CSstats.gg into your browser's main address bar and press Enter.</p>
+            </div>
+
+            <!-- Step 4 -->
+            <div>
+                <h2 class="text-xl font-bold text-white mb-2">Step 4: Find the Redirect</h2>
+                <p>In the network log, find the request with a status of <span class="font-mono bg-yellow-900 text-yellow-300 px-1 rounded">302</span>. This is the redirect that contains the link. Click on it to see the details.</p>
+                <img src="https://i.imgur.com/3h4g3fA.png" alt="Find the 302 Redirect" class="mt-2 rounded-lg shadow-lg" onerror="this.src='https://placehold.co/600x150/1f2937/ffffff?text=Image+Not+Found'">
+            </div>
+
+            <!-- Step 5 -->
+            <div>
+                <h2 class="text-xl font-bold text-white mb-2">Step 5: Copy the Share Code</h2>
+                <p>In the "Headers" tab for the redirect, scroll down to "Response Headers" and find the <span class="font-mono bg-gray-700 px-1 rounded">Location</span> header. This is the `steam://` link. You only need to copy the Share Code part (`CSGO-xxxxx...`).</p>
+                <img src="https://i.imgur.com/8fGgHjB.png" alt="Copy Share Code from Location Header" class="mt-2 rounded-lg shadow-lg" onerror="this.src='https://placehold.co/600x200/1f2937/ffffff?text=Image+Not+Found'">
+            </div>
+        </div>
+
+        <div class="text-center mt-8">
+            <a href="/index.html" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Back to Main Page</a>
+        </div>
+    </div>
+
+</body>
+</html>
