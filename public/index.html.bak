@@ -86,6 +86,12 @@
 
     </div>
 
+    <!-- Developer Panel -->
+    <div id="devPanel" class="hidden fixed bottom-4 right-4 bg-gray-900 p-4 rounded-lg shadow-lg text-white text-xs w-80">
+        <h3 class="font-bold mb-2">Developer Panel (Press ` to toggle)</h3>
+        <div id="endpointSelector" class="space-y-1"></div>
+    </div>
+
     <script>
         const form = document.getElementById('shareCodeForm');
         const input = document.getElementById('shareCodeInput');
@@ -95,32 +101,70 @@
         const buttonText = document.getElementById('buttonText');
         const counterSpan = document.getElementById('parseCounter');
         const apiStatusSpan = document.getElementById('apiStatus');
+        const devPanel = document.getElementById('devPanel');
+        const endpointSelector = document.getElementById('endpointSelector');
         
         const apiEndpoints = [
-            'https://consultants-admissions-site-challenge.trycloudflare.com'
-			'https://csreplay.moon-moon.tech',
-            
+            { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
+            { name: 'Secondary (Norton)', url: 'https://consultants-admissions-site-challenge.trycloudflare.com' }
         ];
-        let activeApiEndpoint = apiEndpoints[0];
+        let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
+
+        // --- Developer Panel Logic ---
+        function buildDevPanel() {
+            endpointSelector.innerHTML = '';
+            apiEndpoints.forEach(endpoint => {
+                const isChecked = endpoint.url === activeApiEndpoint;
+                endpointSelector.innerHTML += `
+                    <div>
+                        <input type="radio" id="${endpoint.name}" name="apiEndpoint" value="${endpoint.url}" ${isChecked ? 'checked' : ''}>
+                        <label for="${endpoint.name}" class="ml-1">${endpoint.name}</label>
+                    </div>
+                `;
+            });
+            document.querySelectorAll('input[name="apiEndpoint"]').forEach(radio => {
+                radio.addEventListener('change', (event) => {
+                    activeApiEndpoint = event.target.value;
+                    localStorage.setItem('activeApiEndpoint', activeApiEndpoint);
+                    console.log(`API endpoint switched to: ${activeApiEndpoint}`);
+                    checkApiStatus(); // Re-check status on change
+                });
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '`') {
+                devPanel.classList.toggle('hidden');
+            }
+        });
+        // --- End Dev Panel Logic ---
 
         async function fetchWithFallback(path, options) {
-            for (const endpoint of apiEndpoints) {
+            // Use the manually selected endpoint first, then try the others.
+            const orderedEndpoints = [
+                apiEndpoints.find(e => e.url === activeApiEndpoint),
+                ...apiEndpoints.filter(e => e.url !== activeApiEndpoint)
+            ];
+
+            for (const endpoint of orderedEndpoints) {
+                if (!endpoint) continue;
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
 
                 try {
-                    const response = await fetch(`${endpoint}${path}`, {
+                    const response = await fetch(`${endpoint.url}${path}`, {
                         ...options,
                         signal: controller.signal
                     });
                     clearTimeout(timeoutId);
                     if (response.ok) {
-                        activeApiEndpoint = endpoint;
+                        activeApiEndpoint = endpoint.url; // Update active endpoint on success
+                        buildDevPanel(); // Refresh panel to show the change
                         return response;
                     }
                 } catch (error) {
                     clearTimeout(timeoutId);
-                    console.error(`Request to ${endpoint}${path} failed:`, error);
+                    console.error(`Request to ${endpoint.url}${path} failed:`, error);
                 }
             }
             throw new Error('All API endpoints are unreachable.');
@@ -130,7 +174,7 @@
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
             try {
-                const response = await fetch(`${apiEndpoints[0]}/count`, { signal: controller.signal });
+                const response = await fetch(`${activeApiEndpoint}/count`, { signal: controller.signal });
                 clearTimeout(timeoutId);
                 apiStatusSpan.className = `h-3 w-3 rounded-full ${response.ok ? 'bg-green-500' : 'bg-red-500'}`;
                 apiStatusSpan.title = response.ok ? 'Online' : 'Offline';
@@ -143,7 +187,7 @@
 
         async function getInitialCount() {
             try {
-                const response = await fetch(`${apiEndpoints[0]}/count`);
+                const response = await fetch(`${activeApiEndpoint}/count`);
                 const data = await response.json();
                 counterSpan.textContent = data.count;
             } catch (error) {
@@ -228,9 +272,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            // Attach the event listener programmatically
             form.addEventListener('submit', handleSubmit);
-            
+            buildDevPanel();
             checkApiStatus();
             getInitialCount();
             setInterval(checkApiStatus, 30000);
