@@ -3,45 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CS2 Demo Link Generator</title>
+    <title>CS2 Demo Command Generator</title>
     <!-- Using Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* A little extra style for a nice gradient background */
-        body {
-            background: linear-gradient(to right, #1e3a8a, #3b82f6);
-        }
-        /* Style for the result link */
-        #result a {
-            word-break: break-all;
-        }
+        body { background: linear-gradient(to right, #1e3a8a, #3b82f6); }
     </style>
 </head>
 <body class="font-sans antialiased text-gray-100 flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-gray-800 bg-opacity-50 backdrop-blur-md rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4">
         
-        <!-- Header -->
         <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-white mb-2">CS2 Demo Link Generator</h1>
-            <p class="text-blue-200">A tool for users of <a href="https://cswatch.in/" target="_blank" rel="noopener noreferrer" class="underline hover:text-white">CSWatch.in</a> to easily get demo download links.</p>
+            <h1 class="text-3xl font-bold text-white mb-2">CS2 Demo Command Generator</h1>
+            <p class="text-blue-200">A tool for users of <a href="https://cswatch.in/" target="_blank" rel="noopener noreferrer" class="underline hover:text-white">CSWatch.in</a> to get demo download commands.</p>
         </div>
 
-        <!-- How to Find Your Code Section -->
         <div class="mb-8 text-left bg-gray-900 bg-opacity-50 p-4 rounded-lg">
             <h2 class="font-bold text-white mb-2">How to get your Share Code:</h2>
             <ol class="list-decimal list-inside text-sm text-blue-200 space-y-1">
-                <li>In CS2, go to "Watch" &rarr; "Your Matches".</li>
-                <li>Select a match and click "Copy Share Link".</li>
-                <li>Or paste a `steam://` link.</li>
-                <li>Or paste a `csstats.gg` "Watch Demo" link! (COMING SOON)</li>
+                <li>Find your match in CS2, on Steam, or on a site like CSstats.gg.</li>
+                <li>Get the Share Code (it looks like `CSGO-xxxxx...`).</li>
+                <li>Paste the code or link below to generate the console command.</li>
             </ol>
         </div>
 
-        <!-- Input Form -->
         <form id="shareCodeForm">
             <div class="mb-4">
-                <label for="shareCodeInput" class="sr-only">Share Code</label>
                 <input 
                     type="text" 
                     id="shareCodeInput"
@@ -53,30 +41,17 @@
             <button 
                 type="submit" 
                 id="submitButton"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 transform hover:scale-105 flex items-center justify-center"
-            >
-                <!-- Spinner icon for loading state -->
-                <svg id="spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span id="buttonText">Get Download Link</span>
-            </button>
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 transform hover:scale-105"
+            >Generate Command</button>
         </form>
 
-        <!-- Result Display Area -->
         <div id="result" class="mt-8 p-6 bg-gray-900 rounded-lg text-center min-h-[80px] flex items-center justify-center transition-all duration-300">
-            <p class="text-gray-400">Your link will appear here...</p>
+            <p class="text-gray-400">Your command will appear here...</p>
         </div>
 
-        <!-- Footer with Creator Tag and Counter -->
         <div class="text-center mt-8 text-blue-200 text-sm space-y-2">
-            <p>
-                Created by <a href="https://steamcommunity.com/id/norton99/" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">norton99</a>
-            </p>
-            <p>
-                Special thanks to <a href="https://github.com/m0onmo0n" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.
-            </p>
+            <p>Created by <a href="https://steamcommunity.com/id/norton99/" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">norton99</a></p>
+            <p>Special thanks to <a href="https://github.com/m0onmo0n" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.</p>
             <div class="flex items-center justify-center space-x-4">
                 <div class="flex items-center space-x-2">
                     <span>Main API:</span>
@@ -88,109 +63,33 @@
                 </div>
             </div>
             <div>
-                <span>Total links generated: <span id="parseCounter" class="font-bold">...</span></span>
+                <span>Total commands generated: <span id="parseCounter" class="font-bold">...</span></span>
             </div>
         </div>
-
-    </div>
-
-    <!-- Developer Panel -->
-    <div id="devPanel" class="hidden fixed bottom-4 right-4 bg-gray-900 p-4 rounded-lg shadow-lg text-white text-xs w-80">
-        <h3 class="font-bold mb-2">Developer Panel (Press ` to toggle)</h3>
-        <div id="endpointSelector" class="space-y-1"></div>
     </div>
 
     <script>
         const form = document.getElementById('shareCodeForm');
         const input = document.getElementById('shareCodeInput');
         const resultDiv = document.getElementById('result');
-        const submitButton = document.getElementById('submitButton');
-        const spinner = document.getElementById('spinner');
-        const buttonText = document.getElementById('buttonText');
         const counterSpan = document.getElementById('parseCounter');
         const apiStatusMain = document.getElementById('apiStatusMain');
         const apiStatusBackup = document.getElementById('apiStatusBackup');
-        const devPanel = document.getElementById('devPanel');
-        const endpointSelector = document.getElementById('endpointSelector');
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
             { name: 'Secondary (Cloudflare)', url: 'https://telling-drive-lebanon-noble.trycloudflare.com' }
         ];
-        let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
-
-        // --- Developer Panel Logic ---
-        function buildDevPanel() {
-            endpointSelector.innerHTML = '';
-            apiEndpoints.forEach(endpoint => {
-                const isChecked = endpoint.url === activeApiEndpoint;
-                endpointSelector.innerHTML += `
-                    <div>
-                        <input type="radio" id="${endpoint.name}" name="apiEndpoint" value="${endpoint.url}" ${isChecked ? 'checked' : ''}>
-                        <label for="${endpoint.name}" class="ml-1">${endpoint.name}</label>
-                    </div>
-                `;
-            });
-            document.querySelectorAll('input[name="apiEndpoint"]').forEach(radio => {
-                radio.addEventListener('change', (event) => {
-                    activeApiEndpoint = event.target.value;
-                    localStorage.setItem('activeApiEndpoint', activeApiEndpoint);
-                    console.log(`API endpoint switched to: ${activeApiEndpoint}`);
-                    checkApiStatus();
-                });
-            });
-        }
-
-        document.addEventListener('keydown', (e) => {
-            if (e.key === '`') {
-                devPanel.classList.toggle('hidden');
-            }
-        });
-        // --- End Dev Panel Logic ---
-
-        async function fetchWithFallback(path, options) {
-            const orderedEndpoints = [
-                apiEndpoints.find(e => e.url === activeApiEndpoint),
-                ...apiEndpoints.filter(e => e.url !== activeApiEndpoint)
-            ];
-
-            for (const endpoint of orderedEndpoints) {
-                if (!endpoint) continue;
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased timeout for csstats resolving
-
-                try {
-                    const response = await fetch(`${endpoint.url}${path}`, {
-                        ...options,
-                        signal: controller.signal
-                    });
-                    clearTimeout(timeoutId);
-                    if (response.ok) {
-                        activeApiEndpoint = endpoint.url;
-                        buildDevPanel();
-                        return response;
-                    }
-                } catch (error) {
-                    clearTimeout(timeoutId);
-                    console.error(`Request to ${endpoint.url}${path} failed:`, error);
-                }
-            }
-            throw new Error('All API endpoints are unreachable.');
-        }
 
         async function checkApiStatus() {
             const statuses = [apiStatusMain, apiStatusBackup];
             apiEndpoints.forEach(async (endpoint, index) => {
                 const statusSpan = statuses[index];
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
                 try {
-                    const response = await fetch(`${endpoint.url}/count`, { signal: controller.signal });
-                    clearTimeout(timeoutId);
+                    const response = await fetch(`${endpoint.url}/count`, { signal: AbortSignal.timeout(5000) });
                     statusSpan.className = `h-3 w-3 rounded-full ${response.ok ? 'bg-green-500' : 'bg-red-500'}`;
                     statusSpan.title = response.ok ? 'Online' : 'Offline';
                 } catch (error) {
-                    clearTimeout(timeoutId);
                     statusSpan.className = 'h-3 w-3 rounded-full bg-red-500';
                     statusSpan.title = 'Offline';
                 }
@@ -202,81 +101,78 @@
             const promises = apiEndpoints.map(endpoint => 
                 fetch(`${endpoint.url}/count`).then(res => res.json()).catch(() => ({count: 0}))
             );
-
             const results = await Promise.allSettled(promises);
             results.forEach(result => {
                 if (result.status === 'fulfilled' && result.value.count) {
                     totalCount += result.value.count;
                 }
             });
-            
             counterSpan.textContent = totalCount > 0 ? totalCount : 'N/A';
         }
 
-        async function handleSubmit(event) {
-            event.preventDefault();
-            let userInput = input.value.trim();
-            let shareCode = userInput;
-
-            // Automatically extract the share code if a full steam URL is pasted
-            const steamMatch = userInput.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
-            if (steamMatch && steamMatch[0]) {
-                shareCode = steamMatch[0];
-            }
-            
-            // If it's not a steam link, we pass the full csstats URL to the backend
-            if (userInput.includes('csstats.gg/match/')) {
-                shareCode = userInput;
-            }
-
-            if (!shareCode) {
-                displayError('Please enter a valid Share Code or Link.');
-                return;
-            }
-            setLoading(true);
-            try {
-                const response = await fetchWithFallback('/decode', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ shareCode: shareCode }),
-                });
-                const data = await response.json();
-                displayLink(data.downloadLink);
-                // After a successful decode, refresh the total count from both servers
-                getInitialCount();
+        async function incrementCount() {
+             try {
+                // We only need to increment on one server, the primary one.
+                const response = await fetch(`${apiEndpoints[0].url}/increment`, { method: 'POST' });
+                if(response.ok) {
+                    const data = await response.json();
+                    getInitialCount(); // Refresh the total count
+                }
             } catch (error) {
-                displayError(error.message);
-            } finally {
-                setLoading(false);
+                console.error("Failed to increment count:", error);
             }
         }
 
-        function displayLink(link) {
-            const proxyUrl = `${activeApiEndpoint}/download?url=${encodeURIComponent(link)}`;
-            const filename = link.split('/').pop();
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            let userInput = input.value.trim();
+
+            // Check for a csstats.gg link
+            if (userInput.includes('csstats.gg/match/')) {
+                const handlerUrl = `/redirect-handler.html?url=${encodeURIComponent(userInput)}`;
+                window.open(handlerUrl, '_blank');
+                resultDiv.innerHTML = `
+                    <p class="text-yellow-300">Please complete the verification in the new tab to get your Share Code.</p>
+                `;
+                return;
+            }
+
+            // Check for a regular share code
+            const match = userInput.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
+            
+            if (match && match[0]) {
+                const shareCode = match[0];
+                const command = `csgo_download_match ${shareCode}`;
+                displayCommand(command);
+                incrementCount();
+            } else {
+                displayError('Could not find a valid Share Code in the text you provided.');
+            }
+        });
+
+        function displayCommand(command) {
             resultDiv.innerHTML = `
                 <div class="flex flex-col items-center space-y-4 text-center">
-                    <p class="font-bold text-white">Your download is ready!</p>
-                    <a 
-                        href="${proxyUrl}" 
-                        download="${filename}"
-                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
-                    >Download Demo</a>
-                    <button id="copyButton" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-300">
-                        Copy Original Link
+                    <p class="font-bold text-white">Your command is ready!</p>
+                    <p class="text-sm text-yellow-300 bg-yellow-900 bg-opacity-50 px-3 py-2 rounded-md">
+                        Copy the command below and paste it into the CS2 console.
+                    </p>
+                    <p class="text-blue-400 font-mono bg-gray-800 p-2 rounded">${command}</p>
+                    <button id="copyButton" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-300">
+                        Copy Command
                     </button>
                 </div>
             `;
             document.getElementById('copyButton').addEventListener('click', () => {
                 const textArea = document.createElement('textarea');
-                textArea.value = link;
+                textArea.value = command;
                 document.body.appendChild(textArea);
                 textArea.select();
                 try {
                     document.execCommand('copy');
                     const copyButton = document.getElementById('copyButton');
                     copyButton.textContent = 'Copied!';
-                    setTimeout(() => { copyButton.textContent = 'Copy Original Link'; }, 2000);
+                    setTimeout(() => { copyButton.textContent = 'Copy Command'; }, 2000);
                 } catch (err) {
                     console.error('Failed to copy text: ', err);
                 }
@@ -288,17 +184,7 @@
             resultDiv.innerHTML = `<p class="text-red-400 font-semibold">${message}</p>`;
         }
 
-        function setLoading(isLoading) {
-            submitButton.disabled = isLoading;
-            spinner.classList.toggle('hidden', !isLoading);
-            buttonText.textContent = isLoading ? 'Decoding...' : 'Get Download Link';
-            submitButton.classList.toggle('opacity-75', isLoading);
-            submitButton.classList.toggle('cursor-not-allowed', isLoading);
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
-            form.addEventListener('submit', handleSubmit);
-            buildDevPanel();
             checkApiStatus();
             getInitialCount();
             setInterval(checkApiStatus, 30000);

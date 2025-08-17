@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resolving CSstats.gg Link...</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(to right, #1e3a8a, #3b82f6); }
+    </style>
+</head>
+<body class="font-sans antialiased text-gray-100 flex flex-col items-center justify-center min-h-screen p-4 text-center">
+
+    <div id="loadingState" class="space-y-4">
+        <h1 class="text-2xl font-bold text-white">Please wait, resolving link...</h1>
+        <p class="text-blue-200">You may need to solve a human verification puzzle below.</p>
+    </div>
+
+    <div id="successState" class="hidden bg-gray-800 bg-opacity-50 backdrop-blur-md rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4">
+        <h1 class="text-2xl font-bold text-white mb-4">Share Code Captured!</h1>
+        <p class="text-blue-200 mb-4">Copy the code below and paste it on the main page.</p>
+        <p id="capturedCode" class="font-mono bg-gray-900 p-3 rounded-lg break-all"></p>
+        <button id="copySuccessButton" class="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Copy Code</button>
+    </div>
+
+    <!-- The iframe where csstats.gg will be loaded -->
+    <iframe id="resolverFrame" class="mt-4 w-full h-96 rounded-lg" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+
+    <script>
+        const loadingState = document.getElementById('loadingState');
+        const successState = document.getElementById('successState');
+        const capturedCodeEl = document.getElementById('capturedCode');
+        const copySuccessButton = document.getElementById('copySuccessButton');
+        const resolverFrame = document.getElementById('resolverFrame');
+
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+            const csStatsUrl = params.get('url');
+
+            if (csStatsUrl) {
+                resolverFrame.src = csStatsUrl;
+            } else {
+                loadingState.innerHTML = '<p class="text-red-400">Error: No URL provided.</p>';
+            }
+        });
+
+        // This is the magic. We listen for when the iframe tries to change its location.
+        resolverFrame.addEventListener('load', () => {
+            try {
+                // Check if the iframe's location is now a steam link
+                if (resolverFrame.contentWindow.location.href.startsWith('steam://')) {
+                    const steamUrl = resolverFrame.contentWindow.location.href;
+                    const match = steamUrl.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
+                    
+                    if (match && match[0]) {
+                        // We got it! Hide the iframe and show the success message.
+                        resolverFrame.style.display = 'none';
+                        loadingState.style.display = 'none';
+                        successState.style.display = 'block';
+                        capturedCodeEl.textContent = match[0];
+                    }
+                }
+            } catch (e) {
+                // Cross-origin errors are expected here as the iframe navigates. We can safely ignore them.
+            }
+        });
+
+        copySuccessButton.addEventListener('click', () => {
+            const code = capturedCodeEl.textContent;
+            const textArea = document.createElement('textarea');
+            textArea.value = code;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                copySuccessButton.textContent = 'Copied!';
+                setTimeout(() => { copySuccessButton.textContent = 'Copy Code'; }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+            }
+            document.body.removeChild(textArea);
+        });
+    </script>
+
+</body>
+</html>
