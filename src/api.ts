@@ -4,7 +4,6 @@ import { URL } from 'url';
 import { exec, ExecOptions } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import puppeteer from 'puppeteer';
 
 // ========================================================================================
 // COUNTER LOGIC WITH PERSISTENCE
@@ -54,61 +53,9 @@ const isRateLimited = (ip: string): boolean => {
 };
 
 // ========================================================================================
-// CSSTATS.GG LINK RESOLVER (using Headless Browser) - REWRITTEN
-// ========================================================================================
-async function resolveCsStatsLink(url: string): Promise<string> {
-    let browser;
-    try {
-        console.log('Launching headless browser...');
-        browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-        const page = await browser.newPage();
-
-        // Make the headless browser look more like a real browser
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36');
-        await page.setViewport({ width: 1920, height: 1080 });
-
-        // Create a promise that resolves only when the correct redirect is found
-        const shareCodePromise = new Promise<string>((resolve, reject) => {
-            page.on('response', response => {
-                if (response.status() >= 300 && response.status() < 400) {
-                    const location = response.headers()['location'];
-                    if (location && location.startsWith('steam://')) {
-                        const match = location.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
-                        if (match && match[0]) {
-                            resolve(match[0]);
-                        }
-                    }
-                }
-            });
-        });
-
-        console.log(`Navigating to ${url}...`);
-        // Navigate to the page but don't wait forever
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-
-        // Wait for either the redirect to be found or a 15-second timeout
-        const shareCode = await Promise.race([
-            shareCodePromise,
-            new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Timeout waiting for redirect from csstats.gg')), 15000))
-        ]);
-        
-        await browser.close();
-        return shareCode;
-
-    } catch (error) {
-        if (browser) {
-            await browser.close();
-        }
-        console.error('Puppeteer failed:', error);
-        throw new Error('Failed to resolve CSstats.gg link.');
-    }
-}
-
-
-// ========================================================================================
 // HTTP SERVER LOGIC
 // ========================================================================================
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => {
     try {
         const allowedOrigin = 'https://csreplay.xyz';
         res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
@@ -128,49 +75,64 @@ const server = http.createServer(async (req, res) => {
 
         const requestUrl = new URL(req.url || '', `http://${req.headers.host}`);
 
+        // --- Endpoint for getting the count ---
         if (requestUrl.pathname === '/count' && req.method === 'GET') {
             res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ count: successfulParses }));
             return;
         }
+        
+        // --- Endpoint for incrementing the count ---
+        if (requestUrl.pathname === '/increment' && req.method === 'POST') {
+            successfulParses++;
+            saveCount();
+            res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ newCount: successfulParses }));
+            return;
+        }
 
+        // --- Endpoint for proxying the download ---
         if (requestUrl.pathname === '/download' && (req.method === 'GET' || req.method === 'HEAD')) {
             const demoUrl = requestUrl.searchParams.get('url');
             if (!demoUrl || !demoUrl.startsWith('http://replay')) {
                 res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid or missing demo URL.' }));
                 return;
             }
+
+            console.log(`Proxying ${req.method} for: ${demoUrl}`);
+            
             http.get(demoUrl, (proxyRes) => {
                 const filename = demoUrl.split('/').pop() || 'cs2-demo.dem.bz2';
                 res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
                 if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type']);
                 if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
+                
                 if (req.method === 'HEAD') {
                     res.writeHead(proxyRes.statusCode || 200).end();
                 } else {
                     res.writeHead(proxyRes.statusCode || 200);
                     proxyRes.pipe(res);
                 }
-            }).on('error', (err) => res.writeHead(500).end());
+            }).on('error', (err) => {
+                console.error('Proxy request failed:', err);
+                res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Failed to fetch the demo file.' }));
+            });
             return;
         }
 
+        // --- Endpoint for decoding the share code ---
         if (requestUrl.pathname === '/decode' && req.method === 'POST') {
             let body = '';
             req.on('data', chunk => { body += chunk.toString(); });
-            req.on('end', async () => {
+            req.on('end', () => {
                 try {
-                    let { shareCode } = JSON.parse(body);
+                    const { shareCode } = JSON.parse(body);
                     if (!shareCode) throw new Error('Missing shareCode.');
-
-                    if (shareCode.includes('csstats.gg/match/')) {
-                        shareCode = await resolveCsStatsLink(shareCode);
-                    }
 
                     const projectRoot = process.cwd();
                     const scriptPath = path.join(projectRoot, 'dist', 'index.js');
                     const command = `node "${scriptPath}" demo-url ${shareCode.replace(/[^a-zA-Z0-9-]/g, '')}`;
                     const execOptions: ExecOptions = { cwd: projectRoot, timeout: 30000 };
 
+                    console.log(`Executing: ${command}`);
                     exec(command, execOptions, (error, stdout, stderr) => {
                         if (error) {
                             const errorMessage = error.signal === 'SIGTERM' ? 'Decoding timed out.' : (stderr || error.message).trim();
