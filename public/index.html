@@ -76,11 +76,18 @@
             <p>
                 Special thanks to <a href="https://github.com/m0onmo0n" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.
             </p>
-            <div class="flex items-center justify-center space-x-2">
-                <span>API Status:</span>
-                <span id="apiStatus" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
-                <span class="font-bold">|</span>
-                <span>Successful links generated: <span id="parseCounter" class="font-bold">...</span></span>
+            <div class="flex items-center justify-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <span>Main API:</span>
+                    <span id="apiStatusMain" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span>Backup API:</span>
+                    <span id="apiStatusBackup" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
+                </div>
+            </div>
+            <div>
+                <span>Total links generated: <span id="parseCounter" class="font-bold">...</span></span>
             </div>
         </div>
 
@@ -100,7 +107,8 @@
         const spinner = document.getElementById('spinner');
         const buttonText = document.getElementById('buttonText');
         const counterSpan = document.getElementById('parseCounter');
-        const apiStatusSpan = document.getElementById('apiStatus');
+        const apiStatusMain = document.getElementById('apiStatusMain');
+        const apiStatusBackup = document.getElementById('apiStatusBackup');
         const devPanel = document.getElementById('devPanel');
         const endpointSelector = document.getElementById('endpointSelector');
         
@@ -127,7 +135,7 @@
                     activeApiEndpoint = event.target.value;
                     localStorage.setItem('activeApiEndpoint', activeApiEndpoint);
                     console.log(`API endpoint switched to: ${activeApiEndpoint}`);
-                    checkApiStatus(); // Re-check status on change
+                    checkApiStatus();
                 });
             });
         }
@@ -140,7 +148,6 @@
         // --- End Dev Panel Logic ---
 
         async function fetchWithFallback(path, options) {
-            // Use the manually selected endpoint first, then try the others.
             const orderedEndpoints = [
                 apiEndpoints.find(e => e.url === activeApiEndpoint),
                 ...apiEndpoints.filter(e => e.url !== activeApiEndpoint)
@@ -158,8 +165,8 @@
                     });
                     clearTimeout(timeoutId);
                     if (response.ok) {
-                        activeApiEndpoint = endpoint.url; // Update active endpoint on success
-                        buildDevPanel(); // Refresh panel to show the change
+                        activeApiEndpoint = endpoint.url;
+                        buildDevPanel();
                         return response;
                     }
                 } catch (error) {
@@ -171,28 +178,38 @@
         }
 
         async function checkApiStatus() {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-            try {
-                const response = await fetch(`${activeApiEndpoint}/count`, { signal: controller.signal });
-                clearTimeout(timeoutId);
-                apiStatusSpan.className = `h-3 w-3 rounded-full ${response.ok ? 'bg-green-500' : 'bg-red-500'}`;
-                apiStatusSpan.title = response.ok ? 'Online' : 'Offline';
-            } catch (error) {
-                clearTimeout(timeoutId);
-                apiStatusSpan.className = 'h-3 w-3 rounded-full bg-red-500';
-                apiStatusSpan.title = 'Offline';
-            }
+            const statuses = [apiStatusMain, apiStatusBackup];
+            apiEndpoints.forEach(async (endpoint, index) => {
+                const statusSpan = statuses[index];
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                try {
+                    const response = await fetch(`${endpoint.url}/count`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    statusSpan.className = `h-3 w-3 rounded-full ${response.ok ? 'bg-green-500' : 'bg-red-500'}`;
+                    statusSpan.title = response.ok ? 'Online' : 'Offline';
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    statusSpan.className = 'h-3 w-3 rounded-full bg-red-500';
+                    statusSpan.title = 'Offline';
+                }
+            });
         }
 
         async function getInitialCount() {
-            try {
-                const response = await fetch(`${activeApiEndpoint}/count`);
-                const data = await response.json();
-                counterSpan.textContent = data.count;
-            } catch (error) {
-                counterSpan.textContent = 'N/A';
-            }
+            let totalCount = 0;
+            const promises = apiEndpoints.map(endpoint => 
+                fetch(`${endpoint.url}/count`).then(res => res.json()).catch(() => ({count: 0}))
+            );
+
+            const results = await Promise.allSettled(promises);
+            results.forEach(result => {
+                if (result.status === 'fulfilled' && result.value.count) {
+                    totalCount += result.value.count;
+                }
+            });
+            
+            counterSpan.textContent = totalCount > 0 ? totalCount : 'N/A';
         }
 
         async function handleSubmit(event) {
@@ -216,9 +233,8 @@
                 });
                 const data = await response.json();
                 displayLink(data.downloadLink);
-                if (data.newCount !== undefined) {
-                    counterSpan.textContent = data.newCount;
-                }
+                // After a successful decode, refresh the total count from both servers
+                getInitialCount();
             } catch (error) {
                 displayError(error.message);
             } finally {
