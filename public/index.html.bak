@@ -34,7 +34,7 @@
                 <li>In CS2, go to "Watch" &rarr; "Your Matches".</li>
                 <li>Select a match and click "Copy Share Link".</li>
                 <li>Or paste a `steam://` link.</li>
-                <li>Or paste a `csstats.gg` "Watch Demo" link!</li>
+                <li>Or paste a `csstats.gg` "Watch Demo" link! (COMING SOON)</li>
             </ol>
         </div>
 
@@ -115,7 +115,7 @@
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Secondary (Cloudflare)', url: 'https://ship-kinase-port-bradley.trycloudflare.com' }
+            { name: 'Secondary (Cloudflare)', url: 'https://northwest-garage-cents-francis.trycloudflare.com' }
         ];
         let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
 

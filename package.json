@@ -10,14 +10,15 @@
     "dev": "node --loader ts-node/esm index.ts",
     "start:api": "node dist/api.js",
     "start:public": "concurrently \"npm run start:api\" \"cloudflared tunnel --url http://localhost:3000 --protocol http2\"",
-	"test:api": "npm run build && node dist/test-api.js"
+    "test:api": "npm run build && node dist/test-api.js"
   },
   "dependencies": {
     "@akiver/boiler-writter": "^1.6.0",
     "commander": "^12.0.0",
     "csgo-protobuf": "^3.0.16",
     "csgo-sharecode": "^3.1.2",
-    "fs-extra": "^11.3.0"
+    "fs-extra": "^11.3.0",
+    "puppeteer": "^24.16.2"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

@@ -4,6 +4,7 @@ import { URL } from 'url';
 import { exec, ExecOptions } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import puppeteer from 'puppeteer';
 
 // ========================================================================================
 // COUNTER LOGIC WITH PERSISTENCE
@@ -53,45 +54,53 @@ const isRateLimited = (ip: string): boolean => {
 };
 
 // ========================================================================================
-// CSSTATS.GG LINK RESOLVER
+// CSSTATS.GG LINK RESOLVER (using Headless Browser)
 // ========================================================================================
-function resolveCsStatsLink(url: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const options = {
-            headers: {
-                // Using a minimal, standard User-Agent is less likely to be blocked
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-            }
-        };
+async function resolveCsStatsLink(url: string): Promise<string> {
+    let browser;
+    try {
+        console.log('Launching headless browser...');
+        browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+        const page = await browser.newPage();
+        
+        let shareCodeUrl: string | null = null;
 
-        https.get(url, options, (res) => {
-            if (res.statusCode === 302 || res.statusCode === 301) {
-                const location = res.headers.location;
-                if (location && location.includes('CSGO-')) {
-                    const match = location.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
-                    if (match && match[0]) {
-                        resolve(match[0]);
-                    } else {
-                        reject(new Error('Could not extract share code from redirect URL.'));
-                    }
-                } else {
-                    reject(new Error('Redirect URL did not contain a valid share code.'));
+        // Listen for all responses to find the redirect
+        page.on('response', response => {
+            if (response.status() >= 300 && response.status() < 400) {
+                const location = response.headers()['location'];
+                if (location && location.startsWith('steam://')) {
+                    shareCodeUrl = location;
                 }
-            } else {
-                reject(new Error(`CSstats.gg did not redirect as expected. Status: ${res.statusCode}`));
             }
-        }).on('error', (err) => {
-            reject(err);
         });
-    });
+
+        console.log(`Navigating to ${url}...`);
+        await page.goto(url, { waitUntil: 'networkidle0' });
+        await browser.close();
+
+        if (typeof shareCodeUrl === 'string') {
+            const match = shareCodeUrl.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
+            if (match && match[0]) {
+                return match[0];
+            }
+        }
+        throw new Error('Could not find a valid Steam redirect link.');
+
+    } catch (error) {
+        if (browser) {
+            await browser.close();
+        }
+        console.error('Puppeteer failed:', error);
+        throw new Error('Failed to resolve CSstats.gg link.');
+    }
 }
 
 
 // ========================================================================================
 // HTTP SERVER LOGIC
 // ========================================================================================
-const server = http.createServer((req, res) => {
-    // Added a top-level try-catch to prevent the server from ever crashing
+const server = http.createServer(async (req, res) => {
     try {
         const allowedOrigin = 'https://csreplay.xyz';
         res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
@@ -111,42 +120,32 @@ const server = http.createServer((req, res) => {
 
         const requestUrl = new URL(req.url || '', `http://${req.headers.host}`);
 
-        // --- Endpoint for getting the count ---
         if (requestUrl.pathname === '/count' && req.method === 'GET') {
             res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ count: successfulParses }));
             return;
         }
 
-        // --- Endpoint for proxying the download ---
         if (requestUrl.pathname === '/download' && (req.method === 'GET' || req.method === 'HEAD')) {
             const demoUrl = requestUrl.searchParams.get('url');
             if (!demoUrl || !demoUrl.startsWith('http://replay')) {
                 res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid or missing demo URL.' }));
                 return;
             }
-
-            console.log(`Proxying ${req.method} for: ${demoUrl}`);
-            
             http.get(demoUrl, (proxyRes) => {
                 const filename = demoUrl.split('/').pop() || 'cs2-demo.dem.bz2';
                 res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
                 if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type']);
                 if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
-                
                 if (req.method === 'HEAD') {
                     res.writeHead(proxyRes.statusCode || 200).end();
                 } else {
                     res.writeHead(proxyRes.statusCode || 200);
                     proxyRes.pipe(res);
                 }
-            }).on('error', (err) => {
-                console.error('Proxy request failed:', err);
-                res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Failed to fetch the demo file.' }));
-            });
+            }).on('error', (err) => res.writeHead(500).end());
             return;
         }
 
-        // --- Endpoint for decoding the share code ---
         if (requestUrl.pathname === '/decode' && req.method === 'POST') {
             let body = '';
             req.on('data', chunk => { body += chunk.toString(); });
@@ -156,9 +155,7 @@ const server = http.createServer((req, res) => {
                     if (!shareCode) throw new Error('Missing shareCode.');
 
                     if (shareCode.includes('csstats.gg/match/')) {
-                        console.log(`Resolving CSstats.gg link: ${shareCode}`);
                         shareCode = await resolveCsStatsLink(shareCode);
-                        console.log(`Resolved to share code: ${shareCode}`);
                     }
 
                     const projectRoot = process.cwd();
@@ -166,39 +163,30 @@ const server = http.createServer((req, res) => {
                     const command = `node "${scriptPath}" demo-url ${shareCode.replace(/[^a-zA-Z0-9-]/g, '')}`;
                     const execOptions: ExecOptions = { cwd: projectRoot, timeout: 30000 };
 
-                    console.log(`Executing: ${command}`);
                     exec(command, execOptions, (error, stdout, stderr) => {
                         if (error) {
-                            if (error.signal === 'SIGTERM') {
-                                return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Server error: Decoding timed out.' }));
-                            }
-                            return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: `Server error: ${(stderr || error.message).trim()}` }));
+                            const errorMessage = error.signal === 'SIGTERM' ? 'Decoding timed out.' : (stderr || error.message).trim();
+                            return res.writeHead(500).end(JSON.stringify({ error: `Server error: ${errorMessage}` }));
                         }
-
                         const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
                         if (!urlMatch || !urlMatch[0]) {
-                            return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Could not parse demo link from script output.' }));
+                            return res.writeHead(500).end(JSON.stringify({ error: 'Could not parse demo link.' }));
                         }
-
                         successfulParses++;
                         saveCount();
-                        const downloadLink = urlMatch[0];
-                        console.log(`Success: ${downloadLink}. Total: ${successfulParses}`);
-                        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink, newCount: successfulParses }));
+                        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink: urlMatch[0], newCount: successfulParses }));
                     });
                 } catch (error) {
                     const errorMessage = error instanceof Error ? error.message : 'Invalid request.';
-                    console.error(`Request failed: ${errorMessage}`);
-                    res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: errorMessage }));
+                    res.writeHead(400).end(JSON.stringify({ error: errorMessage }));
                 }
             });
         } else {
-            res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Not Found' }));
+            res.writeHead(404).end(JSON.stringify({ error: 'Not Found' }));
         }
     } catch (e) {
-        console.error("Unhandled error in server handler:", e);
         if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'An internal server error occurred.' }));
+            res.writeHead(500).end(JSON.stringify({ error: 'Internal server error.' }));
         }
     }
 });
