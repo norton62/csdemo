@@ -53,6 +53,35 @@ const isRateLimited = (ip: string): boolean => {
 };
 
 // ========================================================================================
+// CSSTATS.GG LINK RESOLVER
+// ========================================================================================
+function resolveCsStatsLink(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+            // CSstats.gg redirects to the steam:// link. We need to capture this location.
+            if (res.statusCode === 302 || res.statusCode === 301) {
+                const location = res.headers.location;
+                if (location && location.includes('CSGO-')) {
+                    const match = location.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
+                    if (match && match[0]) {
+                        resolve(match[0]);
+                    } else {
+                        reject(new Error('Could not extract share code from redirect URL.'));
+                    }
+                } else {
+                    reject(new Error('Redirect URL did not contain a valid share code.'));
+                }
+            } else {
+                reject(new Error(`CSstats.gg did not redirect as expected. Status: ${res.statusCode}`));
+            }
+        }).on('error', (err) => {
+            reject(err);
+        });
+    });
+}
+
+
+// ========================================================================================
 // HTTP SERVER LOGIC
 // ========================================================================================
 const server = http.createServer(async (req, res) => {
@@ -93,12 +122,8 @@ const server = http.createServer(async (req, res) => {
         http.get(demoUrl, (proxyRes) => {
             const filename = demoUrl.split('/').pop() || 'cs2-demo.dem.bz2';
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-            if (proxyRes.headers['content-type']) {
-                res.setHeader('Content-Type', proxyRes.headers['content-type']);
-            }
-            if (proxyRes.headers['content-length']) {
-                res.setHeader('Content-Length', proxyRes.headers['content-length']);
-            }
+            if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type']);
+            if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
             proxyRes.pipe(res);
         }).on('error', (err) => {
             console.error('Proxy request failed:', err);
@@ -111,10 +136,17 @@ const server = http.createServer(async (req, res) => {
     if (requestUrl.pathname === '/decode' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
-        req.on('end', () => {
+        req.on('end', async () => { // Now an async function
             try {
-                const { shareCode } = JSON.parse(body);
+                let { shareCode } = JSON.parse(body);
                 if (!shareCode) throw new Error('Missing shareCode.');
+
+                // If it's a CSstats link, resolve it first
+                if (shareCode.includes('csstats.gg/match/')) {
+                    console.log(`Resolving CSstats.gg link: ${shareCode}`);
+                    shareCode = await resolveCsStatsLink(shareCode);
+                    console.log(`Resolved to share code: ${shareCode}`);
+                }
 
                 const projectRoot = process.cwd();
                 const scriptPath = path.join(projectRoot, 'dist', 'index.js');
@@ -125,20 +157,14 @@ const server = http.createServer(async (req, res) => {
                 exec(command, execOptions, (error, stdout, stderr) => {
                     if (error) {
                         if (error.signal === 'SIGTERM') {
-                            console.error('Execution timed out.');
-                            res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Server error: Decoding timed out. The Steam client may not be running.' }));
-                            return;
+                            return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Server error: Decoding timed out.' }));
                         }
-                        const errorMessage = stderr || error.message;
-                        console.error(`Exec error: ${errorMessage}`);
-                        res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: `Server error: ${errorMessage.trim()}` }));
-                        return;
+                        return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: `Server error: ${(stderr || error.message).trim()}` }));
                     }
 
                     const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
                     if (!urlMatch || !urlMatch[0]) {
-                        res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Could not parse demo link.' }));
-                        return;
+                        return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Could not parse demo link from script output.' }));
                     }
 
                     successfulParses++;
@@ -148,7 +174,9 @@ const server = http.createServer(async (req, res) => {
                     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink, newCount: successfulParses }));
                 });
             } catch (error) {
-                res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid request.' }));
+                const errorMessage = error instanceof Error ? error.message : 'Invalid request.';
+                console.error(`Request failed: ${errorMessage}`);
+                res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: errorMessage }));
             }
         });
     } else {
