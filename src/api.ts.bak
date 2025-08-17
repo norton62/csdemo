@@ -57,8 +57,14 @@ const isRateLimited = (ip: string): boolean => {
 // ========================================================================================
 function resolveCsStatsLink(url: string): Promise<string> {
     return new Promise((resolve, reject) => {
-        https.get(url, (res) => {
-            // CSstats.gg redirects to the steam:// link. We need to capture this location.
+        const options = {
+            headers: {
+                // Add a standard browser User-Agent to avoid being blocked
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+        };
+
+        https.get(url, options, (res) => {
             if (res.statusCode === 302 || res.statusCode === 301) {
                 const location = res.headers.location;
                 if (location && location.includes('CSGO-')) {
@@ -87,7 +93,7 @@ function resolveCsStatsLink(url: string): Promise<string> {
 const server = http.createServer(async (req, res) => {
     const allowedOrigin = 'https://csreplay.xyz';
     res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD'); // Allow HEAD requests
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
@@ -110,21 +116,27 @@ const server = http.createServer(async (req, res) => {
     }
 
     // --- Endpoint for proxying the download ---
-    if (requestUrl.pathname === '/download' && req.method === 'GET') {
+    if (requestUrl.pathname === '/download' && (req.method === 'GET' || req.method === 'HEAD')) {
         const demoUrl = requestUrl.searchParams.get('url');
         if (!demoUrl || !demoUrl.startsWith('http://replay')) {
             res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid or missing demo URL.' }));
             return;
         }
 
-        console.log(`Proxying download for: ${demoUrl}`);
+        console.log(`Proxying ${req.method} for: ${demoUrl}`);
         
         http.get(demoUrl, (proxyRes) => {
             const filename = demoUrl.split('/').pop() || 'cs2-demo.dem.bz2';
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
             if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type']);
             if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
-            proxyRes.pipe(res);
+            
+            if (req.method === 'HEAD') {
+                res.writeHead(proxyRes.statusCode || 200).end();
+            } else {
+                res.writeHead(proxyRes.statusCode || 200);
+                proxyRes.pipe(res);
+            }
         }).on('error', (err) => {
             console.error('Proxy request failed:', err);
             res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Failed to fetch the demo file.' }));
@@ -136,12 +148,11 @@ const server = http.createServer(async (req, res) => {
     if (requestUrl.pathname === '/decode' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
-        req.on('end', async () => { // Now an async function
+        req.on('end', async () => {
             try {
                 let { shareCode } = JSON.parse(body);
                 if (!shareCode) throw new Error('Missing shareCode.');
 
-                // If it's a CSstats link, resolve it first
                 if (shareCode.includes('csstats.gg/match/')) {
                     console.log(`Resolving CSstats.gg link: ${shareCode}`);
                     shareCode = await resolveCsStatsLink(shareCode);
