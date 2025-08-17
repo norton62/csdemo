@@ -1,0 +1,7 @@
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "dev": "node --loader ts-node/esm index.ts",
+    "start:api": "node dist/api.js",
+    "test:api": "node --loader ts-node/esm src/test-api.ts"
+  },

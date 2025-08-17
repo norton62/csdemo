@@ -33,7 +33,8 @@
             <ol class="list-decimal list-inside text-sm text-blue-200 space-y-1">
                 <li>In CS2, go to "Watch" &rarr; "Your Matches".</li>
                 <li>Select a match and click "Copy Share Link".</li>
-                <li><strong>Or:</strong> If you have a `steam://` link, just paste the whole link below!</li>
+                <li>Or paste a `steam://` link.</li>
+                <li>Or paste a `csstats.gg` "Watch Demo" link!</li>
             </ol>
         </div>
 
@@ -74,7 +75,7 @@
                 Created by <a href="https://steamcommunity.com/id/norton99/" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">norton99</a>
             </p>
             <p>
-                Special thanks to <a href="https://ll.moonmoon.tech/" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.
+                Special thanks to <a href="https://github.com/m0onmo0n" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.
             </p>
             <div class="flex items-center justify-center space-x-4">
                 <div class="flex items-center space-x-2">
@@ -114,7 +115,7 @@
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Secondary (Norton)', url: 'https://advisor-logistics-int-cleanup.trycloudflare.com' }
+            { name: 'Secondary (Cloudflare)', url: 'https://several-covered-conclusion-theorem.trycloudflare.com' }
         ];
         let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
 
@@ -156,7 +157,7 @@
             for (const endpoint of orderedEndpoints) {
                 if (!endpoint) continue;
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased timeout for csstats resolving
 
                 try {
                     const response = await fetch(`${endpoint.url}${path}`, {
@@ -214,12 +215,20 @@
 
         async function handleSubmit(event) {
             event.preventDefault();
-            let shareCode = input.value.trim();
-            const match = shareCode.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
-            if (match && match[0]) {
-                shareCode = match[0];
-                input.value = shareCode;
+            let userInput = input.value.trim();
+            let shareCode = userInput;
+
+            // Automatically extract the share code if a full steam URL is pasted
+            const steamMatch = userInput.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
+            if (steamMatch && steamMatch[0]) {
+                shareCode = steamMatch[0];
             }
+            
+            // If it's not a steam link, we pass the full csstats URL to the backend
+            if (userInput.includes('csstats.gg/match/')) {
+                shareCode = userInput;
+            }
+
             if (!shareCode) {
                 displayError('Please enter a valid Share Code or Link.');
                 return;

@@ -9,7 +9,8 @@
     "build": "tsc",
     "dev": "node --loader ts-node/esm index.ts",
     "start:api": "node dist/api.js",
-    "start:public": "concurrently \"npm run start:api\" \"cloudflared tunnel --url http://localhost:3000 --protocol http2\""
+    "start:public": "concurrently \"npm run start:api\" \"cloudflared tunnel --url http://localhost:3000 --protocol http2\"",
+	"test:api": "npm run build && node dist/test-api.js"
   },
   "dependencies": {
     "@akiver/boiler-writter": "^1.6.0",
