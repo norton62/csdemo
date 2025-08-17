@@ -26,7 +26,7 @@
                 <li>In CS2, go to "Watch" &rarr; "Your Matches".</li>
                 <li>Select a match and click "Copy Share Link".</li>
                 <li><strong>Or:</strong> Paste a `steam://` or `csstats.gg` link below!</li>
-                <li><a href="/help.html" target="_blank" class="underline hover:text-white">Need help with CSstats.gg links? Click here.</a></li>
+                <li><a href="/help.html" class="underline hover:text-white">Need help with CSstats.gg links? Click here.</a></li>
             </ol>
         </div>
 
@@ -62,15 +62,19 @@
             <p>Special thanks to <a href="https://github.com/m0onmo0n" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.</p>
             <div class="flex items-center justify-center space-x-4">
                 <div class="flex items-center space-x-2">
-                    <span>Main API:</span>
+                    <span>Main:</span>
                     <span id="apiStatusMain" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <span>Backup API:</span>
-                    <span id="apiStatusBackup" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
+                    <span>Backup 1:</span>
+                    <span id="apiStatusBackup1" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span>Backup 2:</span>
+                    <span id="apiStatusBackup2" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
                 </div>
             </div>
-            <div>
+            <div class="pt-2">
                 <span>Total links generated: <span id="parseCounter" class="font-bold">...</span></span>
             </div>
         </div>
@@ -88,13 +92,15 @@
         const resultDiv = document.getElementById('result');
         const counterSpan = document.getElementById('parseCounter');
         const apiStatusMain = document.getElementById('apiStatusMain');
-        const apiStatusBackup = document.getElementById('apiStatusBackup');
+        const apiStatusBackup1 = document.getElementById('apiStatusBackup1');
+        const apiStatusBackup2 = document.getElementById('apiStatusBackup2');
         const devPanel = document.getElementById('devPanel');
         const endpointSelector = document.getElementById('endpointSelector');
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Secondary (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com' }
+            { name: 'Backup 1 (Cloudflare)', url: 'https://ethnic-ended-confidence-surfing.trycloudflare.com' },
+            { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech' }
         ];
         let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
         
@@ -147,9 +153,10 @@
         }
 
         async function checkApiStatus() {
-            const statuses = [apiStatusMain, apiStatusBackup];
+            const statuses = [apiStatusMain, apiStatusBackup1, apiStatusBackup2];
             apiEndpoints.forEach(async (endpoint, index) => {
                 const statusSpan = statuses[index];
+                if (!statusSpan) return;
                 try {
                     const response = await fetch(`${endpoint.url}/count`, { signal: AbortSignal.timeout(5000) });
                     statusSpan.className = `h-3 w-3 rounded-full ${response.ok ? 'bg-green-500' : 'bg-red-500'}`;
@@ -164,14 +171,19 @@
         async function getInitialCount() {
             let totalCount = 0;
             const promises = apiEndpoints.map(endpoint => 
-                fetch(`${endpoint.url}/count`).then(res => res.json()).catch(() => ({count: 0}))
+                fetch(`${endpoint.url}/count`).then(res => {
+                    if (!res.ok) return {count: 0};
+                    return res.json();
+                }).catch(() => ({count: 0}))
             );
+
             const results = await Promise.allSettled(promises);
             results.forEach(result => {
-                if (result.status === 'fulfilled' && result.value.count) {
+                if (result.status === 'fulfilled' && result.value && typeof result.value.count === 'number') {
                     totalCount += result.value.count;
                 }
             });
+            
             counterSpan.textContent = totalCount > 0 ? totalCount : 'N/A';
         }
 
@@ -213,7 +225,7 @@
                 <div id="result-instruction" class="flex flex-col items-center space-y-4 text-center">
                     <p class="font-bold text-white">CSstats.gg Link Detected!</p>
                     <p class="text-sm text-yellow-300 bg-yellow-900 bg-opacity-50 px-3 py-2 rounded-md">
-                        Please follow the <a href="/help.html" target="_blank" class="underline hover:text-white">help guide</a> to get your Share Code, then paste it here.
+                        Please follow the <a href="/help.html" class="underline hover:text-white">help guide</a> to get your Share Code, then paste it here.
                     </p>
                 </div>
             `;
@@ -269,9 +281,4 @@
             form.addEventListener('submit', handleSubmit);
             buildDevPanel();
             checkApiStatus();
-            getInitialCount();
-            setInterval(checkApiStatus, 30000);
-        });
-    </script>
-</body>
-</html>
+            
