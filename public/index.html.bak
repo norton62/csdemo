@@ -115,7 +115,7 @@
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Secondary (Cloudflare)', url: 'https://northwest-garage-cents-francis.trycloudflare.com' }
+            { name: 'Secondary (Cloudflare)', url: 'https://sp-suggests-cure-triangle.trycloudflare.com' }
         ];
         let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
 

@@ -63,6 +63,10 @@ async function resolveCsStatsLink(url: string): Promise<string> {
         browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
         const page = await browser.newPage();
 
+        // Make the headless browser look more like a real browser
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36');
+        await page.setViewport({ width: 1920, height: 1080 });
+
         // Create a promise that resolves only when the correct redirect is found
         const shareCodePromise = new Promise<string>((resolve, reject) => {
             page.on('response', response => {

@@ -54,7 +54,7 @@ const isRateLimited = (ip: string): boolean => {
 };
 
 // ========================================================================================
-// CSSTATS.GG LINK RESOLVER (using Headless Browser)
+// CSSTATS.GG LINK RESOLVER (using Headless Browser) - REWRITTEN
 // ========================================================================================
 async function resolveCsStatsLink(url: string): Promise<string> {
     let browser;
@@ -62,30 +62,34 @@ async function resolveCsStatsLink(url: string): Promise<string> {
         console.log('Launching headless browser...');
         browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
         const page = await browser.newPage();
-        
-        let shareCodeUrl: string | null = null;
 
-        // Listen for all responses to find the redirect
-        page.on('response', response => {
-            if (response.status() >= 300 && response.status() < 400) {
-                const location = response.headers()['location'];
-                if (location && location.startsWith('steam://')) {
-                    shareCodeUrl = location;
+        // Create a promise that resolves only when the correct redirect is found
+        const shareCodePromise = new Promise<string>((resolve, reject) => {
+            page.on('response', response => {
+                if (response.status() >= 300 && response.status() < 400) {
+                    const location = response.headers()['location'];
+                    if (location && location.startsWith('steam://')) {
+                        const match = location.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
+                        if (match && match[0]) {
+                            resolve(match[0]);
+                        }
+                    }
                 }
-            }
+            });
         });
 
         console.log(`Navigating to ${url}...`);
-        await page.goto(url, { waitUntil: 'networkidle0' });
-        await browser.close();
+        // Navigate to the page but don't wait forever
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
-        if (typeof shareCodeUrl === 'string') {
-            const match = shareCodeUrl.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
-            if (match && match[0]) {
-                return match[0];
-            }
-        }
-        throw new Error('Could not find a valid Steam redirect link.');
+        // Wait for either the redirect to be found or a 15-second timeout
+        const shareCode = await Promise.race([
+            shareCodePromise,
+            new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Timeout waiting for redirect from csstats.gg')), 15000))
+        ]);
+        
+        await browser.close();
+        return shareCode;
 
     } catch (error) {
         if (browser) {
@@ -166,11 +170,11 @@ const server = http.createServer(async (req, res) => {
                     exec(command, execOptions, (error, stdout, stderr) => {
                         if (error) {
                             const errorMessage = error.signal === 'SIGTERM' ? 'Decoding timed out.' : (stderr || error.message).trim();
-                            return res.writeHead(500).end(JSON.stringify({ error: `Server error: ${errorMessage}` }));
+                            return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: `Server error: ${errorMessage}` }));
                         }
                         const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
                         if (!urlMatch || !urlMatch[0]) {
-                            return res.writeHead(500).end(JSON.stringify({ error: 'Could not parse demo link.' }));
+                            return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Could not parse demo link.' }));
                         }
                         successfulParses++;
                         saveCount();
@@ -178,15 +182,15 @@ const server = http.createServer(async (req, res) => {
                     });
                 } catch (error) {
                     const errorMessage = error instanceof Error ? error.message : 'Invalid request.';
-                    res.writeHead(400).end(JSON.stringify({ error: errorMessage }));
+                    res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: errorMessage }));
                 }
             });
         } else {
-            res.writeHead(404).end(JSON.stringify({ error: 'Not Found' }));
+            res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Not Found' }));
         }
     } catch (e) {
         if (!res.headersSent) {
-            res.writeHead(500).end(JSON.stringify({ error: 'Internal server error.' }));
+            res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Internal server error.' }));
         }
     }
 });
