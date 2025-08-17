@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background: linear-gradient(to right, #1e3a8a, #3b82f6); }
-        #result a { word-break: break-all; }
+        #result a, #result-instruction a { word-break: break-all; }
     </style>
 </head>
 <body class="font-sans antialiased text-gray-100 flex items-center justify-center min-h-screen p-4">
@@ -26,6 +26,7 @@
                 <li>In CS2, go to "Watch" &rarr; "Your Matches".</li>
                 <li>Select a match and click "Copy Share Link".</li>
                 <li><strong>Or:</strong> Paste a `steam://` or `csstats.gg` link below!</li>
+                <li><a href="/help.html" target="_blank" class="underline hover:text-white">Need help with CSstats.gg links? Click here.</a></li>
             </ol>
         </div>
 
@@ -179,9 +180,7 @@
             let userInput = input.value.trim();
 
             if (userInput.includes('csstats.gg/match/')) {
-                const handlerUrl = `/redirect-handler.html?url=${encodeURIComponent(userInput)}`;
-                window.open(handlerUrl, '_blank');
-                resultDiv.innerHTML = `<p class="text-yellow-300">Please complete the verification in the new tab to get your Share Code, then paste it here.</p>`;
+                displayCsStatsInstructions(userInput);
                 return;
             }
 
@@ -207,6 +206,17 @@
             } else {
                 displayError('Could not find a valid Share Code in the text you provided.');
             }
+        }
+        
+        function displayCsStatsInstructions(url) {
+             resultDiv.innerHTML = `
+                <div id="result-instruction" class="flex flex-col items-center space-y-4 text-center">
+                    <p class="font-bold text-white">CSstats.gg Link Detected!</p>
+                    <p class="text-sm text-yellow-300 bg-yellow-900 bg-opacity-50 px-3 py-2 rounded-md">
+                        Please follow the <a href="/help.html" target="_blank" class="underline hover:text-white">help guide</a> to get your Share Code, then paste it here.
+                    </p>
+                </div>
+            `;
         }
 
         function displayLink(link) {
