@@ -65,7 +65,7 @@ https://csstats.gg/match/..."
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://ethnic-ended-confidence-surfing.trycloudflare.com' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com' },
             { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech' }
         ];
 
@@ -125,35 +125,29 @@ https://csstats.gg/match/..."
             const successfulLinks = [];
             const failedCodes = [];
             
-            const concurrencyLimit = 1; // Max 1 simultaneous request
-            const queue = [...codes];
-
-            async function worker() {
-                while (queue.length > 0) {
-                    const code = queue.shift();
-                    const result = await processSingleCode(code);
-                    
-                    if (result.status === 'success') {
-                        successfulLinks.push(result.link);
-                    } else if (result.status === 'error') {
-                        failedCodes.push(result.code);
-                    }
-                    
-                    renderResult(result);
-                    completed++;
-                    progressText.textContent = `${completed} / ${codes.length}`;
-                    progressBar.style.width = `${(completed / codes.length) * 100}%`;
+            for (const code of codes) {
+                const result = await processSingleCode(code);
+                
+                if (result.status === 'success') {
+                    successfulLinks.push(result.link);
+                } else if (result.status === 'error') {
+                    failedCodes.push(result.code);
                 }
-            }
+                
+                renderResult(result);
+                completed++;
+                progressText.textContent = `${completed} / ${codes.length}`;
+                progressBar.style.width = `${(completed / codes.length) * 100}%`;
 
-            const workers = Array(concurrencyLimit).fill(null).map(worker);
-            await Promise.all(workers);
+                // Wait 3 seconds before processing the next code
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            }
 
             if (successfulLinks.length > 0) appendCopyAllButton(successfulLinks);
             if (failedCodes.length > 0) appendRetryAllButton(failedCodes);
         }
 
-        async function processSingleCode(code) {
+        async function processSingleCode(code, retries = 1) {
             if (code.includes('csstats.gg/match/')) {
                 return { code, error: 'CSstats.gg links must be resolved manually.', status: 'manual' };
             }
@@ -165,7 +159,6 @@ https://csstats.gg/match/..."
             const shareCode = match[0];
 
             try {
-                // This function will now try all endpoints for a single code
                 const { response, endpointUrl } = await fetchWithFallback('/decode', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -174,11 +167,15 @@ https://csstats.gg/match/..."
                 const data = await response.json();
                 return { code, link: data.downloadLink, status: 'success', endpointUrl };
             } catch (err) {
+                if (retries > 0) {
+                    console.log(`Processing for ${code} failed. Waiting 5 seconds to retry...`);
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    return processSingleCode(code, retries - 1); // Retry once more
+                }
                 return { code, error: err.message, status: 'error' };
             }
         }
 
-        // This function now contains the fallback logic
         async function fetchWithFallback(path, options) {
             let lastError = 'All API endpoints are unreachable.';
             for (const endpoint of apiEndpoints) {
@@ -187,7 +184,6 @@ https://csstats.gg/match/..."
                     if (response.ok) {
                         return { response, endpointUrl: endpoint.url };
                     }
-                    // Capture the error message from the API if available
                     const errorData = await response.json().catch(() => null);
                     if (errorData && errorData.error) {
                         lastError = errorData.error;
@@ -199,7 +195,6 @@ https://csstats.gg/match/..."
             }
             throw new Error(lastError);
         }
-
 
         function renderResult(result) {
             const bulkResultList = document.getElementById('bulkResult');
