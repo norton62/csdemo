@@ -16,11 +16,9 @@
     <div class="bg-gray-800 bg-opacity-50 backdrop-blur-md rounded-2xl shadow-2xl p-8 max-w-lg w-full mx-4">
         
         <div class="text-center mb-8">
-            <!-- Logo -->
             <div class="w-48 mx-auto mb-2">
                 <img src="./CSReplay Logo.png" alt="CSReplay Logo">
             </div>
-
             <h1 class="text-3xl font-bold text-white mb-2">CS2 Demo Link Generator</h1>
             <p class="text-blue-200">A tool for users of <a href="https://cswatch.in/" target="_blank" rel="noopener noreferrer" class="underline hover:text-white">CSWatch.in</a> to get demo download links.</p>
         </div>
@@ -82,6 +80,9 @@
             <div class="pt-2">
                 <span>Total links generated: <span id="parseCounter" class="font-bold">...</span></span>
             </div>
+            <div class="pt-2">
+                <a href="/bulk.html" class="underline hover:text-white">Have multiple codes? Try the Bulk Generator.</a>
+            </div>
         </div>
     </div>
     
@@ -104,7 +105,7 @@
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://ethnic-ended-confidence-surfing.trycloudflare.com' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com' },
             { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech' }
         ];
         let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
