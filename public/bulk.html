@@ -65,7 +65,7 @@ https://csstats.gg/match/..."
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://ethnic-ended-confidence-surfing.trycloudflare.com' },
             { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech' }
         ];
 
@@ -87,6 +87,20 @@ https://csstats.gg/match/..."
                         reject(error);
                     });
             });
+        }
+
+        async function fetchWithFallback(path, options) {
+            for (const endpoint of apiEndpoints) {
+                try {
+                    const response = await fetchWithTimeout(`${endpoint.url}${path}`, options);
+                    if (response.ok) {
+                        return response;
+                    }
+                } catch (error) {
+                    console.error(`Request to ${endpoint.url}${path} failed:`, error);
+                }
+            }
+            throw new Error('All API endpoints are unreachable.');
         }
 
         async function handleSubmit(event) {
@@ -118,46 +132,42 @@ https://csstats.gg/match/..."
             const bulkResultList = document.getElementById('bulkResult');
             let completed = 0;
             const successfulLinks = [];
-
-            const promises = codes.map((code, index) => {
-                // Distribute requests across all available endpoints
-                const endpoint = apiEndpoints[index % apiEndpoints.length];
+            
+            // Process requests in parallel
+            const promises = codes.map(async (code) => {
                 let shareCode = code;
-
-                // Handle csstats.gg links by instructing the user
+                
                 if (code.includes('csstats.gg/match/')) {
-                    completed++;
-                    progressText.textContent = `${completed} / ${codes.length}`;
-                    progressBar.style.width = `${(completed / codes.length) * 100}%`;
-                    return Promise.resolve({ code, error: 'CSstats.gg links must be resolved manually.', status: 'manual' });
+                    return { code, error: 'CSstats.gg links must be resolved manually.', status: 'manual' };
                 }
 
                 const match = code.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
                 if (match && match[0]) {
                     shareCode = match[0];
                 } else {
-                    completed++;
-                    progressText.textContent = `${completed} / ${codes.length}`;
-                    progressBar.style.width = `${(completed / codes.length) * 100}%`;
-                    return Promise.resolve({ code, error: 'Invalid format.', status: 'error' });
+                    return { code, error: 'Invalid format.', status: 'error' };
                 }
 
-                return fetchWithTimeout(`${endpoint.url}/decode`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ shareCode }),
-                })
-                .then(res => res.ok ? res.json() : Promise.reject(new Error('API error')))
-                .then(data => {
-                    successfulLinks.push(data.downloadLink);
-                    return { code, link: data.downloadLink, status: 'success' };
-                })
-                .catch(err => ({ code, error: err.message, status: 'error' }))
-                .finally(() => {
+                try {
+                    const response = await fetchWithFallback('/decode', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ shareCode }),
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        successfulLinks.push(data.downloadLink);
+                        return { code, link: data.downloadLink, status: 'success' };
+                    } else {
+                        return { code, error: data.error || 'API error', status: 'error' };
+                    }
+                } catch (err) {
+                    return { code, error: err.message, status: 'error' };
+                } finally {
                     completed++;
                     progressText.textContent = `${completed} / ${codes.length}`;
                     progressBar.style.width = `${(completed / codes.length) * 100}%`;
-                });
+                }
             });
 
             const results = await Promise.all(promises);
@@ -179,7 +189,11 @@ https://csstats.gg/match/..."
                                     </div>
                                     <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
                 } else {
-                    li.innerHTML = `<span class="font-bold text-red-400">FAILED:</span> <span class="text-gray-400">${result.code}</span>`;
+                    li.innerHTML = `<div class="flex justify-between items-center">
+                                        <span class="font-bold text-red-400">FAILED:</span>
+                                        <span class="text-red-300 text-xs">${result.error}</span>
+                                    </div>
+                                    <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
                 }
                 bulkResultList.appendChild(li);
             });
