@@ -3,35 +3,28 @@ import https from 'https';
 import { URL } from 'url';
 import { exec, ExecOptions } from 'child_process';
 import path from 'path';
-import fs from 'fs';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 
 // ========================================================================================
-// COUNTER LOGIC WITH PERSISTENCE
+// FIREBASE SETUP
 // ========================================================================================
-const countFilePath = path.join(process.cwd(), 'count.json');
-let successfulParses = 0;
+// IMPORTANT: You must create a Firebase project and add these details
+// as environment variables on your server.
+const firebaseConfig = {
+  apiKey: "AIzaSyBx1LXTZvEaHOerhyl2EyEvd9OQ5Rztjlo",
+  authDomain: "csreplaycache.firebaseapp.com",
+  projectId: "csreplaycache",
+  storageBucket: "csreplaycache.firebasestorage.app",
+  messagingSenderId: "679854198139",
+  appId: "1:679854198139:web:928b04234a9c4e988541de"
+};
 
-function loadCount() {
-    try {
-        if (fs.existsSync(countFilePath)) {
-            const data = fs.readFileSync(countFilePath, 'utf-8');
-            successfulParses = JSON.parse(data).count || 0;
-            console.log(`Successfully loaded count: ${successfulParses}`);
-        } else {
-            console.log('count.json not found, starting count at 0.');
-        }
-    } catch (error) {
-        console.error('Error loading count from file:', error);
-    }
-}
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-function saveCount() {
-    try {
-        fs.writeFileSync(countFilePath, JSON.stringify({ count: successfulParses }, null, 2), 'utf-8');
-    } catch (error) {
-        console.error('Error saving count to file:', error);
-    }
-}
+const statsDocRef = doc(db, 'stats', 'global');
+const cacheCollectionRef = 'shareCodeCache';
 
 // ========================================================================================
 // SECURITY: RATE LIMITING
@@ -55,114 +48,119 @@ const isRateLimited = (ip: string): boolean => {
 // ========================================================================================
 // HTTP SERVER LOGIC
 // ========================================================================================
-const server = http.createServer((req, res) => {
-    try {
-        const allowedOrigin = 'https://csreplay.xyz';
-        res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+const server = http.createServer(async (req, res) => {
+    const allowedOrigin = 'https://csreplay.xyz';
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-        if (req.method === 'OPTIONS') {
-            res.writeHead(204).end();
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204).end();
+        return;
+    }
+
+    const clientIp = req.socket.remoteAddress || 'unknown';
+    const requestUrl = new URL(req.url || '', `http://${req.headers.host}`);
+
+    // --- Endpoint for getting the count (NO RATE LIMIT) ---
+    if (requestUrl.pathname === '/count' && req.method === 'GET') {
+        try {
+            const docSnap = await getDoc(statsDocRef);
+            const count = docSnap.exists() ? docSnap.data().totalParses : 0;
+            res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ count }));
+        } catch (error) {
+            res.writeHead(500).end(JSON.stringify({ error: 'Could not fetch count.' }));
+        }
+        return;
+    }
+
+    // --- Apply rate limiting to all other endpoints ---
+    if (isRateLimited(clientIp)) {
+        res.writeHead(429, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Too many requests.' }));
+        return;
+    }
+
+    // --- Endpoint for proxying the download ---
+    if (requestUrl.pathname === '/download' && (req.method === 'GET' || req.method === 'HEAD')) {
+        const demoUrl = requestUrl.searchParams.get('url');
+        if (!demoUrl || !demoUrl.startsWith('http://replay')) {
+            res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid or missing demo URL.' }));
             return;
         }
-
-        const clientIp = req.socket.remoteAddress || 'unknown';
-        if (isRateLimited(clientIp)) {
-            res.writeHead(429, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Too many requests.' }));
-            return;
-        }
-
-        const requestUrl = new URL(req.url || '', `http://${req.headers.host}`);
-
-        // --- Endpoint for getting the count ---
-        if (requestUrl.pathname === '/count' && req.method === 'GET') {
-            res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ count: successfulParses }));
-            return;
-        }
-        
-        // --- Endpoint for incrementing the count ---
-        if (requestUrl.pathname === '/increment' && req.method === 'POST') {
-            successfulParses++;
-            saveCount();
-            res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ newCount: successfulParses }));
-            return;
-        }
-
-        // --- Endpoint for proxying the download ---
-        if (requestUrl.pathname === '/download' && (req.method === 'GET' || req.method === 'HEAD')) {
-            const demoUrl = requestUrl.searchParams.get('url');
-            if (!demoUrl || !demoUrl.startsWith('http://replay')) {
-                res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid or missing demo URL.' }));
-                return;
+        http.get(demoUrl, (proxyRes) => {
+            const filename = demoUrl.split('/').pop() || 'cs2-demo.dem.bz2';
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type']);
+            if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
+            if (req.method === 'HEAD') {
+                res.writeHead(proxyRes.statusCode || 200).end();
+            } else {
+                res.writeHead(proxyRes.statusCode || 200);
+                proxyRes.pipe(res);
             }
+        }).on('error', (err) => res.writeHead(500).end());
+        return;
+    }
 
-            console.log(`Proxying ${req.method} for: ${demoUrl}`);
-            
-            http.get(demoUrl, (proxyRes) => {
-                const filename = demoUrl.split('/').pop() || 'cs2-demo.dem.bz2';
-                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-                if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type']);
-                if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
+    // --- Endpoint for decoding the share code ---
+    if (requestUrl.pathname === '/decode' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', async () => {
+            try {
+                const { shareCode } = JSON.parse(body);
+                if (!shareCode) throw new Error('Missing shareCode.');
+
+                const cacheDocRef = doc(db, cacheCollectionRef, shareCode);
+                const cacheSnap = await getDoc(cacheDocRef);
+
+                if (cacheSnap.exists()) {
+                    console.log(`Cache hit for: ${shareCode}`);
+                    const downloadLink = cacheSnap.data().downloadLink;
+                    // We don't increment the main counter on a cache hit to avoid double counting
+                    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink }));
+                    return;
+                }
                 
-                if (req.method === 'HEAD') {
-                    res.writeHead(proxyRes.statusCode || 200).end();
-                } else {
-                    res.writeHead(proxyRes.statusCode || 200);
-                    proxyRes.pipe(res);
-                }
-            }).on('error', (err) => {
-                console.error('Proxy request failed:', err);
-                res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Failed to fetch the demo file.' }));
-            });
-            return;
-        }
+                console.log(`Cache miss for: ${shareCode}. Decoding...`);
+                const projectRoot = process.cwd();
+                const scriptPath = path.join(projectRoot, 'dist', 'index.js');
+                const command = `node "${scriptPath}" demo-url ${shareCode.replace(/[^a-zA-Z0-9-]/g, '')}`;
+                const execOptions: ExecOptions = { cwd: projectRoot, timeout: 30000 };
 
-        // --- Endpoint for decoding the share code ---
-        if (requestUrl.pathname === '/decode' && req.method === 'POST') {
-            let body = '';
-            req.on('data', chunk => { body += chunk.toString(); });
-            req.on('end', () => {
-                try {
-                    const { shareCode } = JSON.parse(body);
-                    if (!shareCode) throw new Error('Missing shareCode.');
+                exec(command, execOptions, async (error, stdout, stderr) => {
+                    if (error) {
+                        const errorMessage = error.signal === 'SIGTERM' ? 'Decoding timed out.' : (stderr || error.message).trim();
+                        return res.writeHead(500).end(JSON.stringify({ error: `Server error: ${errorMessage}` }));
+                    }
+                    const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
+                    if (!urlMatch || !urlMatch[0]) {
+                        return res.writeHead(500).end(JSON.stringify({ error: 'Could not parse demo link.' }));
+                    }
 
-                    const projectRoot = process.cwd();
-                    const scriptPath = path.join(projectRoot, 'dist', 'index.js');
-                    const command = `node "${scriptPath}" demo-url ${shareCode.replace(/[^a-zA-Z0-9-]/g, '')}`;
-                    const execOptions: ExecOptions = { cwd: projectRoot, timeout: 30000 };
+                    const downloadLink = urlMatch[0];
+                    
+                    // Save to cache and increment counter in Firestore
+                    await setDoc(cacheDocRef, { downloadLink, resolvedAt: new Date() });
+                    await setDoc(statsDocRef, { totalParses: increment(1) }, { merge: true });
 
-                    console.log(`Executing: ${command}`);
-                    exec(command, execOptions, (error, stdout, stderr) => {
-                        if (error) {
-                            const errorMessage = error.signal === 'SIGTERM' ? 'Decoding timed out.' : (stderr || error.message).trim();
-                            return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: `Server error: ${errorMessage}` }));
-                        }
-                        const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
-                        if (!urlMatch || !urlMatch[0]) {
-                            return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Could not parse demo link.' }));
-                        }
-                        successfulParses++;
-                        saveCount();
-                        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink: urlMatch[0], newCount: successfulParses }));
-                    });
-                } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : 'Invalid request.';
-                    res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: errorMessage }));
-                }
-            });
-        } else {
-            res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Not Found' }));
-        }
-    } catch (e) {
-        if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Internal server error.' }));
-        }
+                    console.log(`Success: ${downloadLink}. Saved to cache.`);
+                    const docSnap = await getDoc(statsDocRef);
+                    const newCount = docSnap.exists() ? docSnap.data().totalParses : 0;
+                    
+                    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink, newCount }));
+                });
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Invalid request.';
+                res.writeHead(400).end(JSON.stringify({ error: errorMessage }));
+            }
+        });
+    } else {
+        res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Not Found' }));
     }
 });
 
 const PORT = 3000;
-loadCount();
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 API is running on port ${PORT}`);
 });
