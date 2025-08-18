@@ -1,14 +1,9 @@
-# Dependencies
-/node_modules
-
-# Build output
-/dist
-
-# Environment variables (DO NOT COMMIT THIS FILE)
+node_modules/
+dist/
+*.log
+.DS_Store
 .env
-.env.bak
-*.bak
-
-# Local data
-count.json
-tunnel-info.json
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
