@@ -94,7 +94,7 @@ https://csstats.gg/match/..."
                 try {
                     const response = await fetchWithTimeout(`${endpoint.url}${path}`, options);
                     if (response.ok) {
-                        return response;
+                        return { response, endpointUrl: endpoint.url };
                     }
                 } catch (error) {
                     console.error(`Request to ${endpoint.url}${path} failed:`, error);
@@ -127,102 +127,175 @@ https://csstats.gg/match/..."
                 </div>
             `;
             
+            await processCodes(codes);
+            setLoading(false);
+        }
+
+        async function processCodes(codes) {
             const progressText = document.getElementById('progressText');
             const progressBar = document.getElementById('progressBar');
             const bulkResultList = document.getElementById('bulkResult');
             let completed = 0;
             const successfulLinks = [];
-            
-            // Process requests in parallel
-            const promises = codes.map(async (code) => {
-                let shareCode = code;
-                
-                if (code.includes('csstats.gg/match/')) {
-                    return { code, error: 'CSstats.gg links must be resolved manually.', status: 'manual' };
-                }
+            const failedCodes = [];
 
-                const match = code.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
-                if (match && match[0]) {
-                    shareCode = match[0];
-                } else {
-                    return { code, error: 'Invalid format.', status: 'error' };
-                }
+            const concurrencyLimit = 3;
+            const queue = [...codes];
 
-                try {
-                    const response = await fetchWithFallback('/decode', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ shareCode }),
-                    });
-                    const data = await response.json();
-                    if (response.ok) {
-                        successfulLinks.push(data.downloadLink);
-                        return { code, link: data.downloadLink, status: 'success' };
-                    } else {
-                        return { code, error: data.error || 'API error', status: 'error' };
+            async function worker() {
+                while (queue.length > 0) {
+                    const code = queue.shift();
+                    const result = await processSingleCode(code);
+                    
+                    if (result.status === 'success') {
+                        successfulLinks.push(result.link);
+                    } else if (result.status === 'error') {
+                        failedCodes.push(result.code);
                     }
-                } catch (err) {
-                    return { code, error: err.message, status: 'error' };
-                } finally {
+                    
+                    renderResult(result);
                     completed++;
                     progressText.textContent = `${completed} / ${codes.length}`;
                     progressBar.style.width = `${(completed / codes.length) * 100}%`;
                 }
-            });
-
-            const results = await Promise.all(promises);
-            
-            results.forEach(result => {
-                const li = document.createElement('li');
-                li.className = 'p-2 rounded-md';
-                if (result.status === 'success') {
-                    const proxyUrl = `${apiEndpoints[0].url}/download?url=${encodeURIComponent(result.link)}`;
-                    li.innerHTML = `<div class="flex justify-between items-center">
-                                        <span class="text-green-400 font-bold">SUCCESS:</span>
-                                        <a href="${proxyUrl}" download="${result.link.split('/').pop()}" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Download</a>
-                                    </div>
-                                    <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
-                } else if (result.status === 'manual') {
-                     li.innerHTML = `<div class="flex justify-between items-center">
-                                        <span class="text-yellow-400 font-bold">MANUAL:</span>
-                                        <a href="/help.html" target="_blank" class="text-yellow-400 hover:underline text-xs">See Help Guide</a>
-                                    </div>
-                                    <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
-                } else {
-                    li.innerHTML = `<div class="flex justify-between items-center">
-                                        <span class="font-bold text-red-400">FAILED:</span>
-                                        <span class="text-red-300 text-xs">${result.error}</span>
-                                    </div>
-                                    <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
-                }
-                bulkResultList.appendChild(li);
-            });
-
-            if (successfulLinks.length > 0) {
-                const copyAllButton = document.createElement('button');
-                copyAllButton.id = 'copyAllButton';
-                copyAllButton.className = 'mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg';
-                copyAllButton.textContent = `Copy All ${successfulLinks.length} Links`;
-                bulkResultList.appendChild(copyAllButton);
-
-                copyAllButton.addEventListener('click', () => {
-                    const allLinks = successfulLinks.join('\n');
-                    const textArea = document.createElement('textarea');
-                    textArea.value = allLinks;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    try {
-                        document.execCommand('copy');
-                        copyAllButton.textContent = 'Copied!';
-                        setTimeout(() => { copyAllButton.textContent = `Copy All ${successfulLinks.length} Links`; }, 2000);
-                    } catch (err) {
-                        console.error('Failed to copy all links: ', err);
-                    }
-                    document.body.removeChild(textArea);
-                });
             }
 
-            setLoading(false);
+            const workers = Array(concurrencyLimit).fill(null).map(worker);
+            await Promise.all(workers);
+
+            if (successfulLinks.length > 0) {
+                appendCopyAllButton(successfulLinks);
+            }
+            if (failedCodes.length > 0) {
+                appendRetryAllButton(failedCodes);
+            }
+        }
+
+        async function processSingleCode(code) {
+            if (code.includes('csstats.gg/match/')) {
+                return { code, error: 'CSstats.gg links must be resolved manually.', status: 'manual' };
+            }
+
+            const match = code.match(/(CSGO-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5}-[a-zA-Z0-9]{5})/);
+            if (!match || !match[0]) {
+                return { code, error: 'Invalid format.', status: 'error' };
+            }
+            const shareCode = match[0];
+
+            try {
+                const { response, endpointUrl } = await fetchWithFallback('/decode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shareCode }),
+                });
+                const data = await response.json();
+                return { code, link: data.downloadLink, status: 'success', endpointUrl };
+            } catch (err) {
+                return { code, error: err.message, status: 'error' };
+            }
+        }
+
+        function renderResult(result) {
+            const bulkResultList = document.getElementById('bulkResult');
+            const li = document.createElement('li');
+            li.className = 'p-2 rounded-md';
+            li.dataset.code = result.code; // Store original code for retry
+
+            if (result.status === 'success') {
+                const proxyUrl = `${result.endpointUrl}/download?url=${encodeURIComponent(result.link)}`;
+                li.innerHTML = `<div class="flex justify-between items-center">
+                                    <span class="text-green-400 font-bold">SUCCESS:</span>
+                                    <a href="${proxyUrl}" download="${result.link.split('/').pop()}" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Download</a>
+                                </div>
+                                <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
+            } else if (result.status === 'manual') {
+                li.innerHTML = `<div class="flex justify-between items-center">
+                                    <span class="text-yellow-400 font-bold">MANUAL:</span>
+                                    <a href="/help.html" target="_blank" class="text-yellow-400 hover:underline text-xs">See Help Guide</a>
+                                </div>
+                                <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
+            } else {
+                li.innerHTML = `<div class="flex justify-between items-center">
+                                    <div>
+                                        <span class="font-bold text-red-400">FAILED:</span>
+                                        <span class="text-red-300 text-xs ml-2">${result.error}</span>
+                                    </div>
+                                    <button onclick="retrySingle(this)" class="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold py-1 px-2 rounded">Retry</button>
+                                </div>
+                                <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
+            }
+            bulkResultList.appendChild(li);
+        }
+
+        async function retrySingle(button) {
+            const li = button.closest('li');
+            const code = li.dataset.code;
+            li.innerHTML = `<div class="flex items-center"><svg class="animate-spin h-4 w-4 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Retrying...</div><p class="text-gray-400 text-xs mt-1">${code}</p>`;
+            
+            const result = await processSingleCode(code);
+            
+            // Re-render the list item with the new result
+            li.innerHTML = ''; // Clear it first
+            if (result.status === 'success') {
+                const proxyUrl = `${result.endpointUrl}/download?url=${encodeURIComponent(result.link)}`;
+                li.innerHTML = `<div class="flex justify-between items-center">
+                                    <span class="text-green-400 font-bold">SUCCESS:</span>
+                                    <a href="${proxyUrl}" download="${result.link.split('/').pop()}" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Download</a>
+                                </div>
+                                <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
+            } else {
+                 li.innerHTML = `<div class="flex justify-between items-center">
+                                    <div>
+                                        <span class="font-bold text-red-400">FAILED:</span>
+                                        <span class="text-red-300 text-xs ml-2">${result.error}</span>
+                                    </div>
+                                    <button onclick="retrySingle(this)" class="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold py-1 px-2 rounded">Retry</button>
+                                </div>
+                                <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
+            }
+        }
+
+        function appendCopyAllButton(links) {
+            const copyAllButton = document.createElement('button');
+            copyAllButton.id = 'copyAllButton';
+            copyAllButton.className = 'mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg';
+            copyAllButton.textContent = `Copy All ${links.length} Links`;
+            document.getElementById('bulkResult').appendChild(copyAllButton);
+
+            copyAllButton.addEventListener('click', () => {
+                const allLinks = links.join('\n');
+                const textArea = document.createElement('textarea');
+                textArea.value = allLinks;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    copyAllButton.textContent = 'Copied!';
+                    setTimeout(() => { copyAllButton.textContent = `Copy All ${links.length} Links`; }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy all links: ', err);
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+        
+        function appendRetryAllButton(failedCodes) {
+            const retryAllButton = document.createElement('button');
+            retryAllButton.id = 'retryAllButton';
+            retryAllButton.className = 'mt-4 w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded-lg';
+            retryAllButton.textContent = `Retry All ${failedCodes.length} Failed`;
+            document.getElementById('bulkResult').appendChild(retryAllButton);
+
+            retryAllButton.addEventListener('click', async () => {
+                retryAllButton.disabled = true;
+                retryAllButton.textContent = 'Retrying all...';
+                const failedItems = document.querySelectorAll('#bulkResult li:not(:has(.text-green-400))');
+                const codesToRetry = Array.from(failedItems).map(li => li.dataset.code);
+                
+                // Clear existing results to re-process
+                document.getElementById('bulkResult').innerHTML = '';
+                await processCodes(codesToRetry);
+            });
         }
 
         function displayError(message) {
