@@ -3,35 +3,36 @@ import https from 'https';
 import { URL } from 'url';
 import { exec, ExecOptions } from 'child_process';
 import path from 'path';
-import fs from 'fs';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 
 // ========================================================================================
-// COUNTER LOGIC WITH PERSISTENCE
+// FIREBASE SETUP
 // ========================================================================================
-const countFilePath = path.join(process.cwd(), 'count.json');
-let successfulParses = 0;
+// The configuration is now loaded securely from environment variables.
+// You must set these variables on each of your server machines.
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
+};
 
-function loadCount() {
-    try {
-        if (fs.existsSync(countFilePath)) {
-            const data = fs.readFileSync(countFilePath, 'utf-8');
-            successfulParses = JSON.parse(data).count || 0;
-            console.log(`Successfully loaded count: ${successfulParses}`);
-        } else {
-            console.log('count.json not found, starting count at 0.');
-        }
-    } catch (error) {
-        console.error('Error loading count from file:', error);
-    }
+// Check if the Firebase config is valid before initializing
+if (!firebaseConfig.projectId) {
+    console.error("Firebase configuration is missing. Make sure environment variables are set.");
+    // Exit gracefully if config is missing, to prevent crashes.
+    // In a real app, you might handle this differently.
+    process.exit(1); 
 }
 
-function saveCount() {
-    try {
-        fs.writeFileSync(countFilePath, JSON.stringify({ count: successfulParses }, null, 2), 'utf-8');
-    } catch (error) {
-        console.error('Error saving count to file:', error);
-    }
-}
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const statsDocRef = doc(db, 'stats', 'global');
+const cacheCollectionRef = 'shareCodeCache';
 
 // ========================================================================================
 // SECURITY: RATE LIMITING
@@ -71,7 +72,13 @@ const server = http.createServer(async (req, res) => {
 
     // --- Endpoint for getting the count (NO RATE LIMIT) ---
     if (requestUrl.pathname === '/count' && req.method === 'GET') {
-        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ count: successfulParses }));
+        try {
+            const docSnap = await getDoc(statsDocRef);
+            const count = docSnap.exists() ? docSnap.data().totalParses : 0;
+            res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ count }));
+        } catch (error) {
+            res.writeHead(500).end(JSON.stringify({ error: 'Could not fetch count.' }));
+        }
         return;
     }
 
@@ -88,25 +95,18 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid or missing demo URL.' }));
             return;
         }
-
-        console.log(`Proxying ${req.method} for: ${demoUrl}`);
-        
         http.get(demoUrl, (proxyRes) => {
             const filename = demoUrl.split('/').pop() || 'cs2-demo.dem.bz2';
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
             if (proxyRes.headers['content-type']) res.setHeader('Content-Type', proxyRes.headers['content-type']);
             if (proxyRes.headers['content-length']) res.setHeader('Content-Length', proxyRes.headers['content-length']);
-            
             if (req.method === 'HEAD') {
                 res.writeHead(proxyRes.statusCode || 200).end();
             } else {
                 res.writeHead(proxyRes.statusCode || 200);
                 proxyRes.pipe(res);
             }
-        }).on('error', (err) => {
-            console.error('Proxy request failed:', err);
-            res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Failed to fetch the demo file.' }));
-        });
+        }).on('error', (err) => res.writeHead(500).end());
         return;
     }
 
@@ -119,35 +119,48 @@ const server = http.createServer(async (req, res) => {
                 const { shareCode } = JSON.parse(body);
                 if (!shareCode) throw new Error('Missing shareCode.');
 
+                const cacheDocRef = doc(db, cacheCollectionRef, shareCode);
+                const cacheSnap = await getDoc(cacheDocRef);
+
+                if (cacheSnap.exists()) {
+                    console.log(`Cache hit for: ${shareCode}`);
+                    const downloadLink = cacheSnap.data().downloadLink;
+                    // We don't increment the main counter on a cache hit to avoid double counting
+                    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink }));
+                    return;
+                }
+                
+                console.log(`Cache miss for: ${shareCode}. Decoding...`);
                 const projectRoot = process.cwd();
                 const scriptPath = path.join(projectRoot, 'dist', 'index.js');
                 const command = `node "${scriptPath}" demo-url ${shareCode.replace(/[^a-zA-Z0-9-]/g, '')}`;
                 const execOptions: ExecOptions = { cwd: projectRoot, timeout: 30000 };
 
-                console.log(`Executing: ${command}`);
-                exec(command, execOptions, (error, stdout, stderr) => {
+                exec(command, execOptions, async (error, stdout, stderr) => {
                     if (error) {
-                        if (error.signal === 'SIGTERM') {
-                            return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Server error: Decoding timed out.' }));
-                        }
-                        return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: `Server error: ${(stderr || error.message).trim()}` }));
+                        const errorMessage = error.signal === 'SIGTERM' ? 'Decoding timed out.' : (stderr || error.message).trim();
+                        return res.writeHead(500).end(JSON.stringify({ error: `Server error: ${errorMessage}` }));
                     }
-
                     const urlMatch = stdout.match(/https?:\/\/[^\s]+/);
                     if (!urlMatch || !urlMatch[0]) {
-                        return res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Could not parse demo link from script output.' }));
+                        return res.writeHead(500).end(JSON.stringify({ error: 'Could not parse demo link.' }));
                     }
 
-                    successfulParses++;
-                    saveCount();
                     const downloadLink = urlMatch[0];
-                    console.log(`Success: ${downloadLink}. Total: ${successfulParses}`);
-                    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink, newCount: successfulParses }));
+                    
+                    // Save to cache and increment counter in Firestore
+                    await setDoc(cacheDocRef, { downloadLink, resolvedAt: new Date() });
+                    await setDoc(statsDocRef, { totalParses: increment(1) }, { merge: true });
+
+                    console.log(`Success: ${downloadLink}. Saved to cache.`);
+                    const docSnap = await getDoc(statsDocRef);
+                    const newCount = docSnap.exists() ? docSnap.data().totalParses : 0;
+                    
+                    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink, newCount }));
                 });
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Invalid request.';
-                console.error(`Request failed: ${errorMessage}`);
-                res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: errorMessage }));
+                res.writeHead(400).end(JSON.stringify({ error: errorMessage }));
             }
         });
     } else {
@@ -156,7 +169,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = 3000;
-loadCount();
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 API is running on port ${PORT}`);
 });

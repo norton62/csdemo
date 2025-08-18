@@ -119,7 +119,7 @@
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://ran-hunger-putting-guest.trycloudflare.com' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://systems-utility-champagne-favor.trycloudflare.com' },
             { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech' }
         ];
         let activeApiEndpoint = apiEndpoints[0].url;

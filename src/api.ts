@@ -1,3 +1,4 @@
+import 'dotenv/config'; // Loads variables from .env file
 import http from 'http';
 import https from 'https';
 import { URL } from 'url';
@@ -9,16 +10,24 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from 'firebas
 // ========================================================================================
 // FIREBASE SETUP
 // ========================================================================================
-// IMPORTANT: You must create a Firebase project and add these details
-// as environment variables on your server.
+// The configuration is now loaded securely from environment variables.
+// You must set these variables on each of your server machines.
 const firebaseConfig = {
-  apiKey: "AIzaSyBx1LXTZvEaHOerhyl2EyEvd9OQ5Rztjlo",
-  authDomain: "csreplaycache.firebaseapp.com",
-  projectId: "csreplaycache",
-  storageBucket: "csreplaycache.firebasestorage.app",
-  messagingSenderId: "679854198139",
-  appId: "1:679854198139:web:928b04234a9c4e988541de"
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
 };
+
+// Check if the Firebase config is valid before initializing
+if (!firebaseConfig.projectId) {
+    console.error("Firebase configuration is missing. Make sure environment variables are set.");
+    // Exit gracefully if config is missing, to prevent crashes.
+    // In a real app, you might handle this differently.
+    process.exit(1); 
+}
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
