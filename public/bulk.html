@@ -122,14 +122,14 @@ https://csstats.gg/match/..."
             const progressBar = document.getElementById('progressBar');
             const bulkResultList = document.getElementById('bulkResult');
             let completed = 0;
-            const successfulLinks = [];
+            const successfulResults = [];
             const failedCodes = [];
             
             for (const code of codes) {
                 const result = await processSingleCode(code);
                 
                 if (result.status === 'success') {
-                    successfulLinks.push(result.link);
+                    successfulResults.push(result);
                 } else if (result.status === 'error') {
                     failedCodes.push(result.code);
                 }
@@ -139,12 +139,16 @@ https://csstats.gg/match/..."
                 progressText.textContent = `${completed} / ${codes.length}`;
                 progressBar.style.width = `${(completed / codes.length) * 100}%`;
 
-                // Wait 3 seconds before processing the next code
                 await new Promise(resolve => setTimeout(resolve, 3000));
             }
 
-            if (successfulLinks.length > 0) appendCopyAllButton(successfulLinks);
-            if (failedCodes.length > 0) appendRetryAllButton(failedCodes);
+            if (successfulResults.length > 0) {
+                appendCopyAllButton(successfulResults.map(r => r.link));
+                appendDownloadAllButton(successfulResults);
+            }
+            if (failedCodes.length > 0) {
+                appendRetryAllButton(failedCodes);
+            }
         }
 
         async function processSingleCode(code, retries = 1) {
@@ -170,7 +174,7 @@ https://csstats.gg/match/..."
                 if (retries > 0) {
                     console.log(`Processing for ${code} failed. Waiting 5 seconds to retry...`);
                     await new Promise(resolve => setTimeout(resolve, 5000));
-                    return processSingleCode(code, retries - 1); // Retry once more
+                    return processSingleCode(code, retries - 1);
                 }
                 return { code, error: err.message, status: 'error' };
             }
@@ -263,6 +267,32 @@ https://csstats.gg/match/..."
             });
         }
         
+        function appendDownloadAllButton(results) {
+            const downloadAllButton = document.createElement('button');
+            downloadAllButton.id = 'downloadAllButton';
+            downloadAllButton.className = 'mt-2 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg';
+            downloadAllButton.textContent = `Download All ${results.length} Demos`;
+            document.getElementById('bulkResult').appendChild(downloadAllButton);
+
+            downloadAllButton.addEventListener('click', async () => {
+                downloadAllButton.disabled = true;
+                for (let i = 0; i < results.length; i++) {
+                    const result = results[i];
+                    downloadAllButton.textContent = `Downloading ${i + 1} of ${results.length}...`;
+                    const proxyUrl = `${result.endpointUrl}/download?url=${encodeURIComponent(result.link)}`;
+                    const a = document.createElement('a');
+                    a.href = proxyUrl;
+                    a.download = result.link.split('/').pop();
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay between downloads
+                }
+                downloadAllButton.textContent = `Download All ${results.length} Demos`;
+                downloadAllButton.disabled = false;
+            });
+        }
+
         function appendRetryAllButton(failedCodes) {
             const retryAllButton = document.createElement('button');
             retryAllButton.id = 'retryAllButton';
