@@ -1,3 +1,4 @@
+import 'dotenv/config'; // Loads variables from .env file
 import http from 'http';
 import https from 'https';
 import { URL } from 'url';
