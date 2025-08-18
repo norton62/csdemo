@@ -105,7 +105,7 @@
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://ethnic-ended-confidence-surfing.trycloudflare.com' },
             { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech' }
         ];
         let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
@@ -181,9 +181,11 @@
 
         async function checkApiStatus() {
             const statuses = [apiStatusMain, apiStatusBackup1, apiStatusBackup2];
-            apiEndpoints.forEach(async (endpoint, index) => {
-                const statusSpan = statuses[index];
-                if (!statusSpan) return;
+            for (let i = 0; i < apiEndpoints.length; i++) {
+                const endpoint = apiEndpoints[i];
+                const statusSpan = statuses[i];
+                if (!statusSpan) continue;
+
                 try {
                     const response = await fetchWithTimeout(`${endpoint.url}/count`);
                     const responseText = await response.text();
@@ -195,24 +197,28 @@
                     statusSpan.className = 'h-3 w-3 rounded-full bg-red-500';
                     statusSpan.title = 'Offline';
                 }
-            });
+                // Stagger the requests to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 250));
+            }
         }
 
         async function getInitialCount() {
             let totalCount = 0;
-            const promises = apiEndpoints.map(endpoint => 
-                fetchWithTimeout(`${endpoint.url}/count`)
-                    .then(res => res.ok ? res.json() : {count: 0})
-                    .catch(() => ({count: 0}))
-            );
-
-            const results = await Promise.all(promises);
-            results.forEach(result => {
-                if (result && typeof result.count === 'number') {
-                    totalCount += result.count;
+            for (const endpoint of apiEndpoints) {
+                try {
+                    const response = await fetchWithTimeout(`${endpoint.url}/count`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data && typeof data.count === 'number') {
+                            totalCount += data.count;
+                        }
+                    }
+                } catch (error) {
+                    // Ignore errors, just won't add to the count
                 }
-            });
-            
+                 // Stagger the requests
+                await new Promise(resolve => setTimeout(resolve, 250));
+            }
             counterSpan.textContent = totalCount > 0 ? totalCount : 'N/A';
         }
 

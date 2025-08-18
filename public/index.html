@@ -105,7 +105,7 @@
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://ethnic-ended-confidence-surfing.trycloudflare.com' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://ran-hunger-putting-guest.trycloudflare.com' },
             { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech' }
         ];
         let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
@@ -162,6 +162,7 @@
                 apiEndpoints.find(e => e.url === activeApiEndpoint),
                 ...apiEndpoints.filter(e => e.url !== activeApiEndpoint)
             ];
+            let lastError = 'All API endpoints are unreachable.';
 
             for (const endpoint of orderedEndpoints) {
                 if (!endpoint) continue;
@@ -171,12 +172,25 @@
                         activeApiEndpoint = endpoint.url;
                         buildDevPanel();
                         return response;
+                    } else {
+                        // Try to get a more specific error message from the server's response
+                        try {
+                            const errorJson = await response.json();
+                            if (errorJson.error) {
+                                lastError = errorJson.error;
+                            }
+                        } catch (e) {
+                            lastError = `Server responded with status: ${response.status}`;
+                        }
                     }
                 } catch (error) {
                     console.error(`Request to ${endpoint.url}${path} failed:`, error);
+                    if (error instanceof Error) {
+                       lastError = error.message;
+                    }
                 }
             }
-            throw new Error('All API endpoints are unreachable.');
+            throw new Error(lastError);
         }
 
         async function checkApiStatus() {
@@ -197,7 +211,6 @@
                     statusSpan.className = 'h-3 w-3 rounded-full bg-red-500';
                     statusSpan.title = 'Offline';
                 }
-                // Stagger the requests to avoid rate limiting
                 await new Promise(resolve => setTimeout(resolve, 250));
             }
         }
@@ -214,9 +227,8 @@
                         }
                     }
                 } catch (error) {
-                    // Ignore errors, just won't add to the count
+                    // Ignore errors
                 }
-                 // Stagger the requests
                 await new Promise(resolve => setTimeout(resolve, 250));
             }
             counterSpan.textContent = totalCount > 0 ? totalCount : 'N/A';
