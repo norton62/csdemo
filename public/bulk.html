@@ -124,39 +124,22 @@ https://csstats.gg/match/..."
             let completed = 0;
             const successfulLinks = [];
             const failedCodes = [];
-            const results = [];
-
-            const concurrencyLimit = 2; // Max 2 simultaneous requests
-            const throttleDelay = 6000; // 6 seconds per endpoint
-            const endpointLastUsed = new Map();
+            
+            const concurrencyLimit = 1; // Max 1 simultaneous request
             const queue = [...codes];
 
             async function worker() {
                 while (queue.length > 0) {
                     const code = queue.shift();
+                    const result = await processSingleCode(code);
                     
-                    // Find an available endpoint
-                    let endpoint = null;
-                    while (endpoint === null) {
-                        for (const ep of apiEndpoints) {
-                            const lastUsed = endpointLastUsed.get(ep.url) || 0;
-                            if (Date.now() - lastUsed > throttleDelay) {
-                                endpoint = ep;
-                                break;
-                            }
-                        }
-                        if (endpoint === null) {
-                            await new Promise(resolve => setTimeout(resolve, 500)); // Wait if all endpoints are busy
-                        }
+                    if (result.status === 'success') {
+                        successfulLinks.push(result.link);
+                    } else if (result.status === 'error') {
+                        failedCodes.push(result.code);
                     }
                     
-                    endpointLastUsed.set(endpoint.url, Date.now());
-                    const result = await processSingleCode(code, endpoint);
-                    
-                    results.push(result);
-                    if (result.status === 'success') successfulLinks.push(result.link);
-                    if (result.status === 'error') failedCodes.push(result.code);
-                    
+                    renderResult(result);
                     completed++;
                     progressText.textContent = `${completed} / ${codes.length}`;
                     progressBar.style.width = `${(completed / codes.length) * 100}%`;
@@ -166,14 +149,11 @@ https://csstats.gg/match/..."
             const workers = Array(concurrencyLimit).fill(null).map(worker);
             await Promise.all(workers);
 
-            // Render all results at the end
-            results.forEach(renderResult);
-
             if (successfulLinks.length > 0) appendCopyAllButton(successfulLinks);
             if (failedCodes.length > 0) appendRetryAllButton(failedCodes);
         }
 
-        async function processSingleCode(code, endpoint) {
+        async function processSingleCode(code) {
             if (code.includes('csstats.gg/match/')) {
                 return { code, error: 'CSstats.gg links must be resolved manually.', status: 'manual' };
             }
@@ -185,23 +165,41 @@ https://csstats.gg/match/..."
             const shareCode = match[0];
 
             try {
-                const response = await fetchWithTimeout(`${endpoint.url}/decode`, {
+                // This function will now try all endpoints for a single code
+                const { response, endpointUrl } = await fetchWithFallback('/decode', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ shareCode }),
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ error: `API Error: ${response.status}` }));
-                    throw new Error(errorData.error);
-                }
-
                 const data = await response.json();
-                return { code, link: data.downloadLink, status: 'success', endpointUrl: endpoint.url };
+                return { code, link: data.downloadLink, status: 'success', endpointUrl };
             } catch (err) {
                 return { code, error: err.message, status: 'error' };
             }
         }
+
+        // This function now contains the fallback logic
+        async function fetchWithFallback(path, options) {
+            let lastError = 'All API endpoints are unreachable.';
+            for (const endpoint of apiEndpoints) {
+                try {
+                    const response = await fetchWithTimeout(`${endpoint.url}${path}`, options);
+                    if (response.ok) {
+                        return { response, endpointUrl: endpoint.url };
+                    }
+                    // Capture the error message from the API if available
+                    const errorData = await response.json().catch(() => null);
+                    if (errorData && errorData.error) {
+                        lastError = errorData.error;
+                    }
+                } catch (error) {
+                    console.error(`Request to ${endpoint.url}${path} failed:`, error);
+                    lastError = error.message;
+                }
+            }
+            throw new Error(lastError);
+        }
+
 
         function renderResult(result) {
             const bulkResultList = document.getElementById('bulkResult');
@@ -240,20 +238,7 @@ https://csstats.gg/match/..."
             const code = li.dataset.code;
             li.innerHTML = `<div class="flex items-center"><svg class="animate-spin h-4 w-4 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Retrying...</div><p class="text-gray-400 text-xs mt-1">${code}</p>`;
             
-            // Find the first available endpoint for the retry
-            let endpoint = null;
-            while (endpoint === null) {
-                for (const ep of apiEndpoints) {
-                    const lastUsed = (new Map()).get(ep.url) || 0;
-                    if (Date.now() - lastUsed > 6000) {
-                        endpoint = ep;
-                        break;
-                    }
-                }
-                if (endpoint === null) await new Promise(resolve => setTimeout(resolve, 500));
-            }
-
-            const result = await processSingleCode(code, endpoint);
+            const result = await processSingleCode(code);
             
             li.innerHTML = ''; // Clear it first
             renderResult(result);
@@ -294,14 +279,11 @@ https://csstats.gg/match/..."
                 retryAllButton.disabled = true;
                 retryAllButton.textContent = 'Retrying all...';
                 
-                // Find all list items that are not successful to get the codes to retry
                 const failedItems = Array.from(document.querySelectorAll('#bulkResult li')).filter(li => !li.innerHTML.includes('SUCCESS'));
                 const codesToRetry = failedItems.map(li => li.dataset.code);
                 
-                // Clear only the failed items from the list
                 failedItems.forEach(li => li.remove());
                 
-                // Re-run the processing for the failed codes
                 await processCodes(codesToRetry);
                 retryAllButton.disabled = false;
                 retryAllButton.textContent = `Retry All Failed`;
