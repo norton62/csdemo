@@ -24,6 +24,8 @@ const firebaseConfig = {
 // Check if the Firebase config is valid before initializing
 if (!firebaseConfig.projectId) {
     console.error("Firebase configuration is missing. Make sure environment variables are set.");
+    // Exit gracefully if config is missing, to prevent crashes.
+    // In a real app, you might handle this differently.
     process.exit(1); 
 }
 
@@ -56,12 +58,8 @@ const isRateLimited = (ip: string): boolean => {
 // HTTP SERVER LOGIC
 // ========================================================================================
 const server = http.createServer(async (req, res) => {
-    // --- CORS HANDLING ---
-    const allowedOrigins = ['https://csreplay.xyz', 'http://localhost:8888']; // Add other origins if needed, e.g. for local testing
-    const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    }
+    const allowedOrigin = 'https://csreplay.xyz';
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -128,6 +126,7 @@ const server = http.createServer(async (req, res) => {
                 if (cacheSnap.exists()) {
                     console.log(`Cache hit for: ${shareCode}`);
                     const downloadLink = cacheSnap.data().downloadLink;
+                    // We don't increment the main counter on a cache hit to avoid double counting
                     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ downloadLink }));
                     return;
                 }
@@ -150,6 +149,7 @@ const server = http.createServer(async (req, res) => {
 
                     const downloadLink = urlMatch[0];
                     
+                    // Save to cache and increment counter in Firestore
                     await setDoc(cacheDocRef, { downloadLink, resolvedAt: new Date() });
                     await setDoc(statsDocRef, { totalParses: increment(1) }, { merge: true });
 
