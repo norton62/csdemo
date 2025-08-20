@@ -64,9 +64,10 @@ https://csstats.gg/match/..."
         const resultDiv = document.getElementById('result');
         
         const apiEndpoints = [
-            { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com' },
-            { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech' }
+            { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech', type: 'standard' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://appeared-cite-reach-fy.trycloudflare.com', type: 'standard' },
+            { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech', type: 'standard' },
+            { name: 'Backup 3 (Xify)', url: 'https://api.xify.pro/api/demo/extract', type: 'xify' }
         ];
 
         function fetchWithTimeout(resource, options = {}, timeout = 20000) {
@@ -163,13 +164,10 @@ https://csstats.gg/match/..."
             const shareCode = match[0];
 
             try {
-                const { response, endpointUrl } = await fetchWithFallback('/decode', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ shareCode }),
-                });
+                const { response, endpoint } = await fetchWithFallback(shareCode);
                 const data = await response.json();
-                return { code, link: data.downloadLink, status: 'success', endpointUrl };
+                const downloadLink = endpoint.type === 'xify' ? data.downloadUrl : data.downloadLink;
+                return { code, link: downloadLink, status: 'success', endpoint };
             } catch (err) {
                 if (retries > 0) {
                     console.log(`Processing for ${code} failed. Waiting 5 seconds to retry...`);
@@ -180,21 +178,31 @@ https://csstats.gg/match/..."
             }
         }
 
-        async function fetchWithFallback(path, options) {
+        async function fetchWithFallback(shareCode) {
             let lastError = 'All API endpoints are unreachable.';
             for (const endpoint of apiEndpoints) {
                 try {
-                    const response = await fetchWithTimeout(`${endpoint.url}${path}`, options);
+                    let response;
+                    if (endpoint.type === 'xify') {
+                        response = await fetchWithTimeout(endpoint.url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ shareCode }),
+                        });
+                    } else {
+                        response = await fetchWithTimeout(`${endpoint.url}/decode`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ shareCode }),
+                        });
+                    }
                     if (response.ok) {
-                        return { response, endpointUrl: endpoint.url };
+                        return { response, endpoint };
                     }
                     const errorData = await response.json().catch(() => null);
-                    if (errorData && errorData.error) {
-                        lastError = errorData.error;
-                    }
+                    if (errorData && errorData.error) lastError = errorData.error;
                 } catch (error) {
-                    console.error(`Request to ${endpoint.url}${path} failed:`, error);
-                    lastError = error.message;
+                    if (error instanceof Error) lastError = error.message;
                 }
             }
             throw new Error(lastError);
@@ -207,10 +215,16 @@ https://csstats.gg/match/..."
             li.dataset.code = result.code;
 
             if (result.status === 'success') {
-                const proxyUrl = `${result.endpointUrl}/download?url=${encodeURIComponent(result.link)}`;
+                let downloadButtonHtml = '';
+                if (result.endpoint.type === 'standard') {
+                    const proxyUrl = `${result.endpoint.url}/download?url=${encodeURIComponent(result.link)}`;
+                    downloadButtonHtml = `<a href="${proxyUrl}" download="${result.link.split('/').pop()}" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Download</a>`;
+                } else {
+                    downloadButtonHtml = `<span class="text-xs text-gray-400">(No Proxy)</span>`;
+                }
                 li.innerHTML = `<div class="flex justify-between items-center">
                                     <span class="text-green-400 font-bold">SUCCESS:</span>
-                                    <a href="${proxyUrl}" download="${result.link.split('/').pop()}" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded">Download</a>
+                                    ${downloadButtonHtml}
                                 </div>
                                 <p class="text-gray-400 text-xs mt-1">${result.code}</p>`;
             } else if (result.status === 'manual') {
@@ -278,15 +292,17 @@ https://csstats.gg/match/..."
                 downloadAllButton.disabled = true;
                 for (let i = 0; i < results.length; i++) {
                     const result = results[i];
+                    if (result.endpoint.type !== 'standard') continue; // Skip non-proxyable links
+                    
                     downloadAllButton.textContent = `Downloading ${i + 1} of ${results.length}...`;
-                    const proxyUrl = `${result.endpointUrl}/download?url=${encodeURIComponent(result.link)}`;
+                    const proxyUrl = `${result.endpoint.url}/download?url=${encodeURIComponent(result.link)}`;
                     const a = document.createElement('a');
                     a.href = proxyUrl;
                     a.download = result.link.split('/').pop();
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // 1-second delay between downloads
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
                 downloadAllButton.textContent = `Download All ${results.length} Demos`;
                 downloadAllButton.disabled = false;

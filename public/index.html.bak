@@ -63,18 +63,22 @@
         <div class="text-center mt-8 text-blue-200 text-sm space-y-2">
             <p>Created by <a href="https://steamcommunity.com/id/norton99/" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">norton99</a></p>
             <p>Special thanks to <a href="https://github.com/m0onmo0n" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.</p>
-            <div class="flex items-center justify-center space-x-4">
-                <div class="flex items-center space-x-2">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                <div class="flex items-center justify-center space-x-2">
                     <span>Main:</span>
                     <span id="apiStatusMain" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
                 </div>
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center justify-center space-x-2">
                     <span>Backup 1:</span>
                     <span id="apiStatusBackup1" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
                 </div>
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center justify-center space-x-2">
                     <span>Backup 2:</span>
                     <span id="apiStatusBackup2" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
+                </div>
+                 <div class="flex items-center justify-center space-x-2">
+                    <span>Backup 3:</span>
+                    <span id="apiStatusBackup3" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
                 </div>
             </div>
             <div class="pt-2">
@@ -100,13 +104,15 @@
         const apiStatusMain = document.getElementById('apiStatusMain');
         const apiStatusBackup1 = document.getElementById('apiStatusBackup1');
         const apiStatusBackup2 = document.getElementById('apiStatusBackup2');
+        const apiStatusBackup3 = document.getElementById('apiStatusBackup3');
         const devPanel = document.getElementById('devPanel');
         const endpointSelector = document.getElementById('endpointSelector');
         
         const apiEndpoints = [
-            { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://telling-groove-brooks-gun.trycloudflare.com' },
-            { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech' }
+            { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech', type: 'standard' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com', type: 'standard' },
+            { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech', type: 'standard' },
+            { name: 'Backup 3 (Xify)', url: 'https://api.xify.pro/api/demo/extract', type: 'xify' }
         ];
         let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
         
@@ -136,7 +142,6 @@
             }
         });
 
-        // Helper function for fetch with a manual timeout
         function fetchWithTimeout(resource, options = {}, timeout = 5000) {
             return new Promise((resolve, reject) => {
                 const controller = new AbortController();
@@ -157,7 +162,7 @@
             });
         }
 
-        async function fetchWithFallback(path, options, timeout = 10000) {
+        async function fetchWithFallback(shareCode) {
             const orderedEndpoints = [
                 apiEndpoints.find(e => e.url === activeApiEndpoint),
                 ...apiEndpoints.filter(e => e.url !== activeApiEndpoint)
@@ -167,57 +172,68 @@
             for (const endpoint of orderedEndpoints) {
                 if (!endpoint) continue;
                 try {
-                    const response = await fetchWithTimeout(`${endpoint.url}${path}`, options, timeout);
-                    if (response.ok) {
-                        activeApiEndpoint = endpoint.url;
-                        buildDevPanel();
-                        return response;
+                    let response;
+                    if (endpoint.type === 'xify') {
+                        response = await fetchWithTimeout(endpoint.url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ shareCode }),
+                        });
                     } else {
-                        // Try to get a more specific error message from the server's response
-                        try {
-                            const errorJson = await response.json();
-                            if (errorJson.error) {
-                                lastError = errorJson.error;
-                            }
-                        } catch (e) {
-                            lastError = `Server responded with status: ${response.status}`;
-                        }
+                        response = await fetchWithTimeout(`${endpoint.url}/decode`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ shareCode }),
+                        });
+                    }
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const downloadLink = endpoint.type === 'xify' ? data.downloadUrl : data.downloadLink;
+                        return { downloadLink, endpoint };
+                    } else {
+                         const errorJson = await response.json().catch(() => ({}));
+                         lastError = errorJson.error || `Server responded with status: ${response.status}`;
                     }
                 } catch (error) {
-                    console.error(`Request to ${endpoint.url}${path} failed:`, error);
-                    if (error instanceof Error) {
-                       lastError = error.message;
-                    }
+                    if (error instanceof Error) lastError = error.message;
                 }
             }
             throw new Error(lastError);
         }
 
         async function checkApiStatus() {
-            const statuses = [apiStatusMain, apiStatusBackup1, apiStatusBackup2];
+            const statuses = [apiStatusMain, apiStatusBackup1, apiStatusBackup2, apiStatusBackup3];
             for (let i = 0; i < apiEndpoints.length; i++) {
                 const endpoint = apiEndpoints[i];
                 const statusSpan = statuses[i];
                 if (!statusSpan) continue;
-
+                
+                let isOnline = false;
                 try {
-                    const response = await fetchWithTimeout(`${endpoint.url}/count`);
-                    const responseText = await response.text();
-                    const isOnline = response.ok && responseText.includes('"count"');
-                    
-                    statusSpan.className = `h-3 w-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`;
-                    statusSpan.title = isOnline ? 'Online' : 'Offline';
+                    if (endpoint.type === 'xify') {
+                        // Xify doesn't have a count, so we do a simple HEAD request.
+                        const response = await fetchWithTimeout(endpoint.url, { method: 'HEAD' });
+                        isOnline = response.ok;
+                    } else {
+                        const response = await fetchWithTimeout(`${endpoint.url}/count`);
+                        const responseText = await response.text();
+                        isOnline = response.ok && responseText.includes('"count"');
+                    }
                 } catch (error) {
-                    statusSpan.className = 'h-3 w-3 rounded-full bg-red-500';
-                    statusSpan.title = 'Offline';
+                    isOnline = false;
                 }
+                
+                statusSpan.className = `h-3 w-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`;
+                statusSpan.title = isOnline ? 'Online' : 'Offline';
                 await new Promise(resolve => setTimeout(resolve, 250));
             }
         }
 
         async function getInitialCount() {
             let totalCount = 0;
-            for (const endpoint of apiEndpoints) {
+            const standardEndpoints = apiEndpoints.filter(e => e.type === 'standard');
+            for (const endpoint of standardEndpoints) {
                 try {
                     const response = await fetchWithTimeout(`${endpoint.url}/count`);
                     if (response.ok) {
@@ -226,9 +242,7 @@
                             totalCount += data.count;
                         }
                     }
-                } catch (error) {
-                    // Ignore errors
-                }
+                } catch (error) {}
                 await new Promise(resolve => setTimeout(resolve, 250));
             }
             counterSpan.textContent = totalCount > 0 ? totalCount : 'N/A';
@@ -249,13 +263,8 @@
                 const shareCode = match[0];
                 setLoading(true);
                 try {
-                    const response = await fetchWithFallback('/decode', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ shareCode: shareCode }),
-                    });
-                    const data = await response.json();
-                    displayLink(data.downloadLink);
+                    const { downloadLink, endpoint } = await fetchWithFallback(shareCode);
+                    displayLink(downloadLink, endpoint);
                     getInitialCount();
                 } catch (error) {
                     displayError(error.message);
@@ -278,17 +287,21 @@
             `;
         }
 
-        function displayLink(link) {
-            const proxyUrl = `${activeApiEndpoint}/download?url=${encodeURIComponent(link)}`;
+        function displayLink(link, endpoint) {
             const filename = link.split('/').pop();
+            let downloadButtonHtml = '';
+
+            if (endpoint.type === 'standard') {
+                const proxyUrl = `${endpoint.url}/download?url=${encodeURIComponent(link)}`;
+                downloadButtonHtml = `<a href="${proxyUrl}" download="${filename}" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Download Demo</a>`;
+            } else {
+                 downloadButtonHtml = `<p class="text-sm text-yellow-300">Download via proxy is not available for this server.</p>`;
+            }
+
             resultDiv.innerHTML = `
                 <div class="flex flex-col items-center space-y-4 text-center">
                     <p class="font-bold text-white">Your download is ready!</p>
-                    <a 
-                        href="${proxyUrl}" 
-                        download="${filename}"
-                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300"
-                    >Download Demo</a>
+                    ${downloadButtonHtml}
                     <button id="copyButton" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-300">
                         Copy Original Link
                     </button>
