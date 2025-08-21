@@ -105,7 +105,7 @@
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech', type: 'standard' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://appeared-cite-reach-fy.trycloudflare.com', type: 'standard' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com', type: 'standard' },
             { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech', type: 'standard' },
             { name: 'Backup 3 (Xify)', url: 'https://api.xify.pro/api/demo/extract', type: 'xify' }
         ];
@@ -341,6 +341,17 @@
             checkApiStatus();
             getInitialCount();
             setInterval(checkApiStatus, 30000);
+
+            // --- NEW: Handle Share Code from URL ---
+            const params = new URLSearchParams(window.location.search);
+            const shareCodeFromUrl = params.get('sharecode');
+            if (shareCodeFromUrl) {
+                input.value = shareCodeFromUrl;
+                // Use a small timeout to ensure the form is ready
+                setTimeout(() => {
+                    form.requestSubmit();
+                }, 100);
+            }
         });
     </script>
 </body>

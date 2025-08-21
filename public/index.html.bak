@@ -105,7 +105,7 @@
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech', type: 'standard' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com', type: 'standard' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://appeared-cite-reach-fy.trycloudflare.com', type: 'standard' },
             { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech', type: 'standard' },
             { name: 'Backup 3 (Xify)', url: 'https://api.xify.pro/api/demo/extract', type: 'xify' }
         ];
