@@ -63,19 +63,10 @@
         <div class="text-center mt-8 text-blue-200 text-sm space-y-2">
             <p>Created by <a href="https://steamcommunity.com/id/norton99/" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">norton99</a></p>
             <p>Special thanks to <a href="https://github.com/m0onmo0n" target="_blank" rel="noopener noreferrer" class="font-bold underline hover:text-white">Moon Moon</a> for server hosting.</p>
-            <div class="grid grid-cols-3 gap-2 text-center">
-                <div class="flex items-center justify-center space-x-2">
-                    <span>Main:</span>
-                    <span id="apiStatusMain" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
-                </div>
-                <div class="flex items-center justify-center space-x-2">
-                    <span>Backup 1:</span>
-                    <span id="apiStatusBackup1" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
-                </div>
-                <div class="flex items-center justify-center space-x-2">
-                    <span>Backup 2:</span>
-                    <span id="apiStatusBackup2" class="h-3 w-3 rounded-full bg-yellow-500" title="Checking..."></span>
-                </div>
+            <div class="pt-2">
+                <a href="https://csrepup.moon-moon.tech/status/apis" target="_blank" rel="noopener noreferrer" id="apiStatusLink" class="underline hover:text-white">
+                    Available APIs: <span id="apiStatusCount" class="font-bold">...</span>
+                </a>
             </div>
             <div class="pt-2">
                 <span>Total links generated: <span id="parseCounter" class="font-bold">...</span></span>
@@ -97,17 +88,16 @@
         const input = document.getElementById('shareCodeInput');
         const resultDiv = document.getElementById('result');
         const counterSpan = document.getElementById('parseCounter');
-        const apiStatusMain = document.getElementById('apiStatusMain');
-        const apiStatusBackup1 = document.getElementById('apiStatusBackup1');
-        const apiStatusBackup2 = document.getElementById('apiStatusBackup2');
+        const apiStatusCount = document.getElementById('apiStatusCount');
         const devPanel = document.getElementById('devPanel');
         const endpointSelector = document.getElementById('endpointSelector');
         
         const apiEndpoints = [
             { name: 'Primary (Moon Moon)', url: 'https://csreplay.moon-moon.tech', type: 'standard' },
-            { name: 'Backup 1 (Cloudflare)', url: 'https://improve-pig-banner-prove.trycloudflare.com', type: 'standard' },
+            { name: 'Backup 1 (Cloudflare)', url: 'https://cube-ribbon-treatment-friends.trycloudflare.com', type: 'standard' },
             { name: 'Backup 2 (Moon Moon 2)', url: 'https://csreplay2.moon-moon.tech', type: 'standard' },
-            { name: 'Backup 3 (Xify)', url: 'https://api.xify.pro/api/demo/extract', type: 'xify' }
+            { name: 'Backup 3 (Oesch)', url: 'http://csreplay.oesch.me', type: 'standard' },
+            { name: 'Backup 4 (Xify)', url: 'https://api.xify.pro/api/demo/extract', type: 'xify' }
         ];
         let activeApiEndpoint = localStorage.getItem('activeApiEndpoint') || apiEndpoints[0].url;
         
@@ -198,13 +188,8 @@
         }
 
         async function checkApiStatus() {
-            const statuses = [apiStatusMain, apiStatusBackup1, apiStatusBackup2];
-            // We only check the first 3 endpoints for the status indicators
-            for (let i = 0; i < 3; i++) {
-                const endpoint = apiEndpoints[i];
-                const statusSpan = statuses[i];
-                if (!statusSpan) continue;
-                
+            let onlineCount = 0;
+            const promises = apiEndpoints.map(async (endpoint) => {
                 let isOnline = false;
                 try {
                     if (endpoint.type === 'xify') {
@@ -218,11 +203,13 @@
                 } catch (error) {
                     isOnline = false;
                 }
-                
-                statusSpan.className = `h-3 w-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`;
-                statusSpan.title = isOnline ? 'Online' : 'Offline';
-                await new Promise(resolve => setTimeout(resolve, 250));
-            }
+                if (isOnline) {
+                    onlineCount++;
+                }
+            });
+
+            await Promise.all(promises);
+            apiStatusCount.textContent = `${onlineCount} / ${apiEndpoints.length}`;
         }
 
         async function getInitialCount() {
@@ -341,17 +328,6 @@
             checkApiStatus();
             getInitialCount();
             setInterval(checkApiStatus, 30000);
-
-            // --- NEW: Handle Share Code from URL ---
-            const params = new URLSearchParams(window.location.search);
-            const shareCodeFromUrl = params.get('sharecode');
-            if (shareCodeFromUrl) {
-                input.value = shareCodeFromUrl;
-                // Use a small timeout to ensure the form is ready
-                setTimeout(() => {
-                    form.requestSubmit();
-                }, 100);
-            }
         });
     </script>
 </body>
