@@ -231,7 +231,7 @@
         }
 
         async function handleSubmit(event) {
-            event.preventDefault();
+            if (event) event.preventDefault();
             let userInput = input.value.trim();
 
             if (userInput.includes('csstats.gg/match/')) {
@@ -328,6 +328,19 @@
             checkApiStatus();
             getInitialCount();
             setInterval(checkApiStatus, 30000);
+
+            // --- Handle Share Code from URL ---
+            const params = new URLSearchParams(window.location.search);
+            const shareCodeFromUrl = params.get('sharecode');
+            if (shareCodeFromUrl) {
+                input.value = shareCodeFromUrl;
+                // Use a small timeout to ensure the form is ready
+                setTimeout(() => {
+                    // We call handleSubmit directly instead of form.requestSubmit()
+                    // to ensure our custom logic runs.
+                    handleSubmit(); 
+                }, 100);
+            }
         });
     </script>
 </body>
